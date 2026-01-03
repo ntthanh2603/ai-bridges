@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"ai-bridges/internal/config"
+	claudeHandlers "ai-bridges/internal/handlers/claude"
 	geminiHandlers "ai-bridges/internal/handlers/gemini"
 	openaiHandlers "ai-bridges/internal/handlers/openai"
 	"ai-bridges/internal/providers/gemini"
@@ -29,6 +30,7 @@ func main() {
 			gemini.NewClient,
 			geminiHandlers.NewHandler,
 			openaiHandlers.NewHandler,
+			claudeHandlers.NewHandler,
 		),
 		fx.Invoke(
 			server.New,
