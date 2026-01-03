@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"ai-bridges/internal/config"
+	claudeHandlers "ai-bridges/internal/handlers/claude"
 	geminiHandlers "ai-bridges/internal/handlers/gemini"
 	openaiHandlers "ai-bridges/internal/handlers/openai"
 	"ai-bridges/pkg/logger"
@@ -20,18 +21,19 @@ type Server struct {
 	app           *fiber.App
 	geminiHandler *geminiHandlers.Handler
 	openaiHandler *openaiHandlers.Handler
+	claudeHandler *claudeHandlers.Handler
 	cfg           *config.Config
 	log           *zap.Logger
 }
 
-func New(lc fx.Lifecycle, geminiHandler *geminiHandlers.Handler, openaiHandler *openaiHandlers.Handler, cfg *config.Config, log *zap.Logger) (*Server, error) {
+func New(lc fx.Lifecycle, geminiHandler *geminiHandlers.Handler, openaiHandler *openaiHandlers.Handler, claudeHandler *claudeHandlers.Handler, cfg *config.Config, log *zap.Logger) (*Server, error) {
 	app := fiber.New(fiber.Config{
 		AppName: "AI Bridges API",
 	})
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Requested-With",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Requested-With, x-api-key, anthropic-version",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
 	}))
 	
@@ -42,6 +44,7 @@ func New(lc fx.Lifecycle, geminiHandler *geminiHandlers.Handler, openaiHandler *
 		app:           app,
 		geminiHandler: geminiHandler,
 		openaiHandler: openaiHandler,
+		claudeHandler: claudeHandler,
 		cfg:           cfg,
 		log:           log,
 	}
@@ -80,6 +83,10 @@ func (s *Server) registerRoutes() {
 	v1Group.Get("/models", s.openaiHandler.HandleModels)
 	v1Group.Post("/chat/completions", s.openaiHandler.HandleChatCompletions)
 	v1Group.Post("/embeddings", s.openaiHandler.HandleEmbeddings)
+
+	// Claude routes
+	v1Group.Post("/messages", s.claudeHandler.HandleMessages)
+	v1Group.Get("/messages", func(c *fiber.Ctx) error { return c.SendStatus(405) }) // Method Not Allowed for GET
 
 	s.app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
