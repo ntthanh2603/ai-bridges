@@ -1,5 +1,63 @@
 basePath: /
 definitions:
+  claude.ConfigContent:
+    properties:
+      text:
+        type: string
+      type:
+        description: '"text"'
+        type: string
+    type: object
+  claude.Message:
+    properties:
+      content:
+        type: string
+      role:
+        type: string
+    type: object
+  claude.MessageRequest:
+    properties:
+      max_tokens:
+        type: integer
+      messages:
+        items:
+          $ref: '#/definitions/claude.Message'
+        type: array
+      model:
+        type: string
+      stream:
+        type: boolean
+      system:
+        type: string
+    type: object
+  claude.MessageResponse:
+    properties:
+      content:
+        items:
+          $ref: '#/definitions/claude.ConfigContent'
+        type: array
+      id:
+        type: string
+      model:
+        type: string
+      role:
+        description: '"assistant"'
+        type: string
+      stop_reason:
+        type: string
+      type:
+        description: '"message"'
+        type: string
+      usage:
+        $ref: '#/definitions/claude.Usage'
+    type: object
+  claude.Usage:
+    properties:
+      input_tokens:
+        type: integer
+      output_tokens:
+        type: integer
+    type: object
   gemini.Candidate:
     properties:
       content:
@@ -299,6 +357,38 @@ paths:
       summary: Create embeddings
       tags:
       - OpenAI Compatible
+  /v1/messages:
+    post:
+      consumes:
+      - application/json
+      description: Accepts requests in Anthropic Claude format
+      parameters:
+      - description: Message request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/claude.MessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/claude.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Claude-compatible chat
+      tags:
+      - Claude Compatible
   /v1/models:
     get:
       consumes:

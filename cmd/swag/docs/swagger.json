@@ -89,6 +89,54 @@
                 }
             }
         },
+        "/v1/messages": {
+            "post": {
+                "description": "Accepts requests in Anthropic Claude format",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Claude Compatible"
+                ],
+                "summary": "Claude-compatible chat",
+                "parameters": [
+                    {
+                        "description": "Message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/claude.MessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/claude.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/v1/models": {
             "get": {
                 "description": "Returns a list of models supported by this server",
@@ -250,6 +298,94 @@
         }
     },
     "definitions": {
+        "claude.ConfigContent": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"text\"",
+                    "type": "string"
+                }
+            }
+        },
+        "claude.Message": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "claude.MessageRequest": {
+            "type": "object",
+            "properties": {
+                "max_tokens": {
+                    "type": "integer"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/claude.Message"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "stream": {
+                    "type": "boolean"
+                },
+                "system": {
+                    "type": "string"
+                }
+            }
+        },
+        "claude.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/claude.ConfigContent"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "\"assistant\"",
+                    "type": "string"
+                },
+                "stop_reason": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"message\"",
+                    "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/claude.Usage"
+                }
+            }
+        },
+        "claude.Usage": {
+            "type": "object",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
         "gemini.Candidate": {
             "type": "object",
             "properties": {

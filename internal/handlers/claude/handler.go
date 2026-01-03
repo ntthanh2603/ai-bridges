@@ -46,16 +46,23 @@ func (h *Handler) HandleModels(c *fiber.Ctx) error {
 }
 
 // HandleMessages handles the main chat endpoint
+// @Summary Claude-compatible chat
+// @Description Accepts requests in Anthropic Claude format
+// @Tags Claude Compatible
+// @Accept json
+// @Produce json
+// @Param request body MessageRequest true "Message request"
+// @Success 200 {object} MessageResponse
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /v1/messages [post]
 func (h *Handler) HandleMessages(c *fiber.Ctx) error {
-	// 1. Parse Headers (Loose check as requested)
-	// x-api-key check
+	// x-api-key check (loose check)
 	if c.Get("x-api-key") == "" {
-		// Just a warning or ignore, user said "SDK chỉ check có tồn tại, không verify thật"
-		// But if missing, SDK might complain? No, SDK sends it. Server checks it.
-		// We'll proceed even if missing or fake.
+		// Proceed even if missing
 	}
 
-	// 2. Parse Body
+
 	var req MessageRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -64,7 +71,8 @@ func (h *Handler) HandleMessages(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Prepare Prompt for backend (Gemini)
+	// Prepare Prompt for backend
+
 	var promptBuilder strings.Builder
 	if req.System != "" {
 		promptBuilder.WriteString(fmt.Sprintf("System: %s\n\n", req.System))
@@ -78,14 +86,12 @@ func (h *Handler) HandleMessages(c *fiber.Ctx) error {
 	}
 	prompt := promptBuilder.String()
 
-	opts := []providers.GenerateOption{}
+	var opts []providers.GenerateOption // Declared once here
 	// Map Claude model to Gemini model if needed, or just pass valid gemini model
 	// For now we use default or stick to what openai handler does.
-	// We'll just pass the cliient default.
+	// We'll just pass the client default.
 
-	// 4. Call Backend
-	// Since Gemini client doesn't support real streaming yet, we fetch full response then simulate stream if needed.
-	
+	// Call Backend
 	msgID := fmt.Sprintf("msg_%s", uuid.New().String())
 
 	// Handle Streaming
@@ -112,67 +118,43 @@ func (h *Handler) HandleMessages(c *fiber.Ctx) error {
 			}
 
 			// Simulate Streaming
-			// 1. message_start
-			msgStart := fiber.Map{
+			sendEvent(w, "message_start", fiber.Map{
 				"type": "message_start",
-				"message": MessageResponse{ // Reusing struct for partial usage
+				"message": MessageResponse{
 					ID:    msgID,
 					Type:  "message",
 					Role:  "assistant",
 					Model: req.Model,
-					Usage: Usage{InputTokens: 10, OutputTokens: 1}, // Dummy
-					Content: []ConfigContent{}, // Empty for start
+					Usage: Usage{InputTokens: 10, OutputTokens: 1}, 
+					Content: []ConfigContent{}, 
 					StopReason: "",
 				},
-			}
-			sendEvent(w, "message_start", msgStart)
+			})
 
-			// 2. content_block_start
-			blockStart := fiber.Map{
+			sendEvent(w, "content_block_start", fiber.Map{
 				"type": "content_block_start",
 				"index": 0,
-				"content_block": ConfigContent{
-					Type: "text",
-					Text: "",
-				},
-			}
-			sendEvent(w, "content_block_start", blockStart)
+				"content_block": ConfigContent{Type: "text", Text: ""},
+			})
 
-			// 3. content_block_delta (Simulated chunks)
+			// Simulated chunks
 			words := strings.Split(response.Text, " ")
 			for _, word := range words {
-				textChunk := word + " "
-				delta := fiber.Map{
+				sendEvent(w, "content_block_delta", fiber.Map{
 					"type": "content_block_delta",
 					"index": 0,
-					"delta": Delta{
-						Type: "text_delta",
-						Text: textChunk,
-					},
-				}
-				sendEvent(w, "content_block_delta", delta)
-				w.Flush()
-				time.Sleep(20 * time.Millisecond) // Artificial delay
+					"delta": Delta{Type: "text_delta", Text: word + " "},
+				})
+				time.Sleep(20 * time.Millisecond)
 			}
 
-			// 4. content_block_stop
-			blockStop := fiber.Map{
-				"type": "content_block_stop",
-				"index": 0,
-			}
-			sendEvent(w, "content_block_stop", blockStop)
-
-			// 5. message_stop
-			msgStop := fiber.Map{
-				"type": "message_stop",
-				"stop_reason": "end_turn",
-			}
-			sendEvent(w, "message_stop", msgStop)
+			sendEvent(w, "content_block_stop", fiber.Map{"type": "content_block_stop", "index": 0})
+			sendEvent(w, "message_stop", fiber.Map{"type": "message_stop", "stop_reason": "end_turn"})
 		})
 		return nil
 	}
 
-	// Non-Streaming
+
 	response, err := h.client.GenerateContent(c.Context(), prompt, opts...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -182,14 +164,9 @@ func (h *Handler) HandleMessages(c *fiber.Ctx) error {
 	}
 
 	// Construct Response
-	content := []ConfigContent{
-		{
-			Type: "text",
-			Text: response.Text,
-		},
-	}
+	content := []ConfigContent{{Type: "text", Text: response.Text}}
 	
-	resp := MessageResponse{
+	return c.JSON(MessageResponse{
 		ID:         msgID,
 		Type:       "message",
 		Role:       "assistant",
@@ -197,12 +174,10 @@ func (h *Handler) HandleMessages(c *fiber.Ctx) error {
 		Content:    content,
 		StopReason: "end_turn",
 		Usage: Usage{
-			InputTokens:  15, // Dummy
-			OutputTokens: len(response.Text) / 4, // Rough estimate
+			InputTokens:  15, 
+			OutputTokens: len(response.Text) / 4,
 		},
-	}
-
-	return c.JSON(resp)
+	})
 }
 
 func sendEvent(w *bufio.Writer, event string, data interface{}) {
