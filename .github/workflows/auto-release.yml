@@ -1,0 +1,46 @@
+name: Auto Release on PR
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
+      - name: Increment version
+        id: bump_version
+        run: |
+          current_tag=${{ steps.get_tag.outputs.latest_tag }}
+          version=${current_tag#v}
+          IFS='.' read -r a b c <<< "$version"
+          new_c=$((c + 1))
+          new_tag="v$a.$b.$new_c"
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "Creating new version: $new_tag"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          name: Release ${{ steps.bump_version.outputs.new_tag }}
+          body: |
+            Auto release from PR #${{ github.event.pull_request.number }}
+            Title: ${{ github.event.pull_request.title }}
+          draft: false
+          prerelease: false
