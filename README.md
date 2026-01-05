@@ -1,6 +1,6 @@
 # AI Bridges 🚀
 
-**AI Bridges** is a high-performance WebAI-to-API service built in Go. It allows you to convert web-based AI services (like Google Gemini) into standardized REST APIs, supporting **OpenAI**, **Anthropic (Claude)**, and **Google Native** protocols simultaneously.
+**AI Bridges** transforms web-based AI services (like Google Gemini) into standardized REST APIs. Use your favorite AI SDKs (OpenAI, Claude, Gemini) to connect to Gemini through a single, high-performance Go server.
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker)](https://github.com/ntthanh2603/ai-bridges/pkgs/container/ai-bridges)
@@ -8,77 +8,78 @@
 
 ---
 
-## ✨ Features
+## 🎯 Why AI Bridges?
 
-- 🌉 **Universal AI Bridge**: Connects web-based AI models to your favorite apps.
-- 🔌 **Multi-Protocol Support**: One server, three standards. Fully compatible with **OpenAI**, **Claude (Anthropic)**, and **Gemini Native** SDKs.
-- 🔄 **Smart Session Management**: Automatically handles cookie rotation (`__Secure-1PSIDTS`) and persistence to keep connections alive.
-- � **High Performance**: Built with Go and Fiber for efficiency and speed.
-- � **Production Ready**: Includes Docker support, Swagger UI, and unified configuration.
+**Problem**: You want to use Google Gemini with your existing AI tools (LangChain, OpenAI SDK, Claude SDK), but Gemini only works through their web interface or official SDK.
 
----
+**Solution**: AI Bridges creates a local API server that:
 
-## 🛠️ Technology Stack
+- ✅ Accepts requests in **OpenAI**, **Claude**, or **Gemini** format
+- ✅ Forwards them to Gemini's web interface
+- ✅ Returns responses in the format you requested
+- ✅ Handles authentication and session management automatically
 
-- **Language**: Go (v1.24+)
-- **Framework**: [Gofiber/fiber](https://github.com/gofiber/fiber)
-- **HTTP Client**: [req/v3](https://github.com/imroc/req/v3)
-- **Logging**: Uber-zap
-- **Documentation**: Swag / Swagger
+**Use Cases**:
 
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Go 1.24 or higher installed. Or Docker.
-
-### Configuration Priority
-
-The application uses a unified configuration system with the following priority:
-
-1. **Environment Variables** (Highest priority)
-2. **`config.yml`**
-3. **Defaults** (Lowest priority)
-
-### Environment Variables
-
-| Variable                  | Corresponding YAML Key    | Description                                             |
-| ------------------------- | ------------------------- | ------------------------------------------------------- |
-| `GEMINI_1PSID`            | `GEMINI_1PSID`            | (Required) Main session cookie                          |
-| `GEMINI_1PSIDTS`          | `GEMINI_1PSIDTS`          | (Recommended) Timestamp cookie. Found in browser tools. |
-| `GEMINI_1PSIDCC`          | `GEMINI_1PSIDCC`          | (Optional) Context cookie                               |
-| `GEMINI_REFRESH_INTERVAL` | `GEMINI_REFRESH_INTERVAL` | Rotation interval in minutes (default: 30)              |
-| `PORT`                    | `PORT`                    | Server port (default: 3000)                             |
-
-### How to get Gemini Cookies
-
-1. Go to [gemini.google.com](https://gemini.google.com)
-2. Open DevTools (F12) -> **Application** tab -> **Cookies**
-3. Find and copy values for `__Secure-1PSID` and `__Secure-1PSIDTS`
-
-![Gemini Token Guide](assets/gemini_token_guide.png)
+- Use Gemini with LangChain applications
+- Test Gemini integration without API keys
+- Build multi-model AI applications
+- Develop locally with Gemini support
 
 ---
 
-## 🐳 Docker Usage (Quick Start)
+## ⚡ Quick Start (30 seconds)
 
-The easiest way to get started is to pull the pre-built image.
+### Option 1: Docker Compose (Recommended)
 
-### 1. Pull the image
+1. **Get your Gemini cookies** (one-time setup):
 
-```bash
-docker pull ghcr.io/ntthanh2603/ai-bridges:latest
+   - Go to [gemini.google.com](https://gemini.google.com) and sign in
+   - Press `F12` → **Application** tab → **Cookies**
+   - Copy `__Secure-1PSID` and `__Secure-1PSIDTS`
+
+   ![Gemini Token Guide](assets/gemini_token_guide.png)
+
+2. **Create `docker-compose.yml`**:
+
+```yaml
+services:
+  ai-bridges:
+    image: ghcr.io/ntthanh2603/ai-bridges:latest
+    container_name: ai-bridges
+    ports:
+      - "3000:3000"
+    environment:
+      - GEMINI_1PSID=your_1psid_here
+      - GEMINI_1PSIDTS=your_1psidts_here
+      - GEMINI_REFRESH_INTERVAL=30
+    volumes:
+      - ./cookies:/app/.cookies
+    restart: unless-stopped
 ```
 
-### 2. Run container
+3. **Start the server**:
+
+```bash
+docker-compose up -d
+```
+
+4. **Test it**:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gemini-pro", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+✅ **Done!** Your AI bridge is running at `http://localhost:3000`
+
+### Option 2: Docker Run
 
 ```bash
 docker run -d -p 3000:3000 \
   -e GEMINI_1PSID="your_psid_here" \
   -e GEMINI_1PSIDTS="your_psidts_here" \
-  -e GEMINI_REFRESH_INTERVAL=30 \
   -v $(pwd)/cookies:/app/.cookies \
   --name ai-bridges \
   --restart unless-stopped \
@@ -87,97 +88,193 @@ docker run -d -p 3000:3000 \
 
 ---
 
-## 🛠️ Building from Source
+## ✨ Features
 
-If you want to modify the code or run it locally without Docker.
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/ntthanh2603/ai-bridges.git
-cd ai-bridges
-```
-
-### 2. Configure
-
-Copy the example config and add your cookies:
-
-```bash
-cp config.example.yml config.yml
-# Edit config.yml with your GEMINI_1PSID and GEMINI_1PSIDTS
-```
-
-### 3. Run the server
-
-```bash
-go run cmd/server/main.go
-```
+- 🌉 **Universal AI Bridge**: One server, three protocols (OpenAI, Claude, Gemini)
+- 🔌 **Drop-in Replacement**: Works with existing OpenAI/Claude/Gemini SDKs
+- 🔄 **Smart Session Management**: Auto-rotates cookies to keep sessions alive
+- ⚡ **High Performance**: Built with Go and Fiber for speed
+- 🐳 **Production Ready**: Docker support, Swagger UI, health checks
+- 📝 **Well Documented**: Interactive API docs at `/swagger/`
 
 ---
 
-## 🧪 Quick Testing
+## 🛠️ Configuration
 
-Once the server is running, you can test the connection using any of the supported protocols.
+### Environment Variables
 
-### 1. OpenAI Compatible (Legacy/Universal)
+| Variable                  | Required       | Default | Description                             |
+| ------------------------- | -------------- | ------- | --------------------------------------- |
+| `GEMINI_1PSID`            | ✅ Yes         | -       | Main session cookie from Gemini         |
+| `GEMINI_1PSIDTS`          | ✅ Yes         | -       | Timestamp cookie (prevents auth errors) |
+| `GEMINI_1PSIDCC`          | ⚠️ Recommended | -       | Context cookie (optional)               |
+| `GEMINI_REFRESH_INTERVAL` | ❌ No          | 30      | Cookie rotation interval (minutes)      |
+| `PORT`                    | ❌ No          | 3000    | Server port                             |
 
-Compatible with most AI clients (SDKs, LangChain, etc.).
+### Configuration Priority
+
+1. **Environment Variables** (Highest)
+2. **`config.yml`** file
+3. **Defaults** (Lowest)
+
+---
+
+## 🧪 Usage Examples
+
+### OpenAI SDK (Python)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:3000/v1",
+    api_key="not-needed"
+)
+
+response = client.chat.completions.create(
+    model="gemini-pro",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(response.choices[0].message.content)
+```
+
+### Claude SDK (Python)
+
+```python
+from langchain_anthropic import ChatAnthropic
+
+llm = ChatAnthropic(
+    base_url="http://localhost:3000",
+    model="claude-3-5-sonnet-20240620",
+    api_key="not-needed"
+)
+
+response = llm.invoke("Explain quantum computing")
+print(response.content)
+```
+
+### Gemini Native SDK (Python)
+
+```python
+import google.generativeai as genai
+
+genai.configure(
+    api_key="not-needed",
+    transport="rest",
+    client_options={"api_endpoint": "http://localhost:3000"}
+)
+
+model = genai.GenerativeModel("gemini-pro")
+response = model.generate_content("Write a poem about coding")
+print(response.text)
+```
+
+### cURL (Direct HTTP)
 
 ```bash
 curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemini-pro",
-    "messages": [{"role": "user", "content": "Hello, who are you?"}]
+    "messages": [{"role": "user", "content": "What is AI?"}],
+    "stream": false
   }'
 ```
 
-### 2. Claude Compatible (Python - Langchain)
-
-Compatible with `langchain-anthropic` and standard Anthropic SDKs.
-
-```python
-from langchain_anthropic import ChatAnthropic
-
-# Initialize the client pointing to our local bridge
-llm = ChatAnthropic(
-    base_url="http://localhost:3000",
-    model="claude-3-5-sonnet-20240620",
-    temperature=0.7,
-    api_key="abc"
-)
-response = llm.invoke("Hello Claude! Please introduce yourself and explain how you can help me with coding.")
-print(response.content)
-```
-
-For more examples (including streaming and other SDKs), check the [examples/](examples/) directory.
+**More examples**: Check the [`examples/`](examples/) directory for complete working code.
 
 ---
 
-## 💡 Client Examples
+## 🔧 Building from Source
 
-You can find Python client examples in the `examples/` directory for widely used SDKs:
-
-- **Claude/Anthropic**: [examples/claude_client.py](examples/claude_client.py)
-- **OpenAI**: [examples/openai_client.py](examples/openai_client.py)
-- **Gemini**: [examples/gemini_client.py](examples/gemini_client.py)
-
-To run the Claude example:
+If you want to modify the code or contribute:
 
 ```bash
-cd examples
-pip install langchain-anthropic
-python claude_client.py
+# Clone the repository
+git clone https://github.com/ntthanh2603/ai-bridges.git
+cd ai-bridges
+
+# Copy and configure
+cp config.example.yml config.yml
+# Edit config.yml with your cookies
+
+# Run locally
+go run cmd/server/main.go
+
+# Or build binary
+go build -o ai-bridges cmd/server/main.go
+./ai-bridges
 ```
+
+---
 
 ## 📘 API Documentation
 
-Visit `http://localhost:3000/swagger/` for the full interactive API documentation.
+Once running, visit **`http://localhost:3000/swagger/`** for interactive API documentation.
 
 ![Swagger UI](assets/swagger.png)
 
 ---
 
+## 🛠️ Technology Stack
+
+- **Language**: Go 1.24+
+- **Framework**: [Fiber](https://github.com/gofiber/fiber) (Express-like web framework)
+- **HTTP Client**: [req/v3](https://github.com/imroc/req/v3)
+- **Logging**: [Uber Zap](https://github.com/uber-go/zap)
+- **Documentation**: [Swag](https://github.com/swaggo/swag) (Swagger/OpenAPI)
+
+---
+
+## 📦 Project Structure
+
+```
+ai-bridges/
+├── cmd/server/          # Application entry point
+├── internal/
+│   ├── handlers/        # HTTP request handlers
+│   ├── providers/       # AI provider implementations (Gemini, etc.)
+│   └── server/          # Server setup and routing
+├── pkg/
+│   ├── config/          # Configuration management
+│   └── utils/           # Utility functions
+├── examples/            # Client usage examples
+├── docker-compose.yml   # Docker Compose configuration
+└── Dockerfile           # Container image definition
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/ntthanh2603/ai-bridges/blob/main/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## ⭐ Star History
+
+If you find this project useful, please consider giving it a star! ⭐
+
+---
+
+## 🔗 Links
+
+- **GitHub**: [ntthanh2603/ai-bridges](https://github.com/ntthanh2603/ai-bridges)
+- **Docker Hub**: [ghcr.io/ntthanh2603/ai-bridges](https://github.com/ntthanh2603/ai-bridges/pkgs/container/ai-bridges)
+- **Issues**: [Report a bug](https://github.com/ntthanh2603/ai-bridges/issues)
+
+---
+
+**Made with ❤️ by the AI Bridges team**
