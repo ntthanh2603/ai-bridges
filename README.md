@@ -76,7 +76,7 @@ docker run -d -p 4981:4981 \
 2. **Configure your cookies**:
    - Go to [gemini.google.com](https://gemini.google.com) and sign in
    - Press `F12` → **Application** tab → **Cookies**
-   - Copy `__Secure-1PSID`, `__Secure-1PSIDTS` and `__Secure-1PSIDCC` (recommended)
+   - Copy `__Secure-1PSID` and `__Secure-1PSIDTS`
    - Create a `.env` file from the example:
      ```bash
      cp .env.example .env

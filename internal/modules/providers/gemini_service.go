@@ -41,7 +41,6 @@ type Client struct {
 type CookieStore struct {
 	Secure1PSID   string    `json:"__Secure-1PSID"`
 	Secure1PSIDTS string    `json:"__Secure-1PSIDTS"`
-	Secure1PSIDCC string    `json:"__Secure-1PSIDCC"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	mu            sync.RWMutex
 }
@@ -54,7 +53,6 @@ func NewClient(cfg *configs.Config, log *zap.Logger) *Client {
 	cookies := &CookieStore{
 		Secure1PSID:   cfg.Gemini.Secure1PSID,
 		Secure1PSIDTS: cfg.Gemini.Secure1PSIDTS,
-		Secure1PSIDCC: cfg.Gemini.Secure1PSIDCC,
 		UpdatedAt:     time.Now(),
 	}
 
@@ -82,7 +80,6 @@ func (c *Client) Init(ctx context.Context) error {
 	c.cookies.Secure1PSID = cleanCookie(c.cookies.Secure1PSID)
 	configPSIDTS := cleanCookie(c.cookies.Secure1PSIDTS) // Save original config value
 	c.cookies.Secure1PSIDTS = configPSIDTS
-	c.cookies.Secure1PSIDCC = cleanCookie(c.cookies.Secure1PSIDCC)
 
 	// Check if we should use cached cookies or clear cache
 	if c.cookies.Secure1PSID != "" {
@@ -165,9 +162,6 @@ func (c *Client) refreshSessionToken() error {
 	// 2. Prepare full cookie string
 	cookieStr := fmt.Sprintf("%s__Secure-1PSID=%s; __Secure-1PSIDTS=%s", 
 		extraCookies, c.cookies.Secure1PSID, c.cookies.Secure1PSIDTS)
-	if c.cookies.Secure1PSIDCC != "" {
-		cookieStr += fmt.Sprintf("; __Secure-1PSIDCC=%s", c.cookies.Secure1PSIDCC)
-	}
 
 	commonHeaders := map[string]string{
 		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -319,9 +313,6 @@ func (c *Client) RotateCookies() error {
 	if c.cookies.Secure1PSIDTS != "" {
 		parts = append(parts, fmt.Sprintf("__Secure-1PSIDTS=%s", c.cookies.Secure1PSIDTS))
 	}
-	if c.cookies.Secure1PSIDCC != "" {
-		parts = append(parts, fmt.Sprintf("__Secure-1PSIDCC=%s", c.cookies.Secure1PSIDCC))
-	}
 	cookieStr := strings.Join(parts, "; ")
 
 	// Payload must be exactly this string
@@ -357,9 +348,6 @@ func (c *Client) RotateCookies() error {
 			found = true
 			// Save the new cookie to cache immediately
 			_ = c.SaveCachedCookies()
-		}
-		if cookie.Name == "__Secure-1PSIDCC" {
-			c.cookies.Secure1PSIDCC = cookie.Value
 		}
 		// Sync to req/v3 client for future calls
 		c.httpClient.SetCommonCookies(cookie)
@@ -577,17 +565,6 @@ func (cs *CookieStore) ToHTTPCookies() []*http.Cookie {
 		cookies = append(cookies, &http.Cookie{
 			Name:     "__Secure-1PSIDTS",
 			Value:    cleanCookie(cs.Secure1PSIDTS),
-			Domain:   domain,
-			Path:     "/",
-			Secure:   true,
-			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
-		})
-	}
-	if cs.Secure1PSIDCC != "" {
-		cookies = append(cookies, &http.Cookie{
-			Name:     "__Secure-1PSIDCC",
-			Value:    cleanCookie(cs.Secure1PSIDCC),
 			Domain:   domain,
 			Path:     "/",
 			Secure:   true,

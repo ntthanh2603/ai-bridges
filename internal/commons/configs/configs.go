@@ -19,7 +19,6 @@ type Config struct {
 type GeminiConfig struct {
 	Secure1PSID     string
 	Secure1PSIDTS   string
-	Secure1PSIDCC   string
 	RefreshInterval int
 	Cookies         string
 }
