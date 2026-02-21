@@ -1,9 +1,9 @@
 basePath: /
 definitions:
-  models.Candidate:
+  dto.Candidate:
     properties:
       content:
-        $ref: '#/definitions/models.Content'
+        $ref: '#/definitions/dto.Content'
       finishMessage:
         type: string
       finishReason:
@@ -11,7 +11,7 @@ definitions:
       index:
         type: integer
     type: object
-  models.ChatCompletionRequest:
+  dto.ChatCompletionRequest:
     properties:
       max_tokens:
         type: integer
@@ -26,11 +26,11 @@ definitions:
       temperature:
         type: number
     type: object
-  models.ChatCompletionResponse:
+  dto.ChatCompletionResponse:
     properties:
       choices:
         items:
-          $ref: '#/definitions/models.Choice'
+          $ref: '#/definitions/dto.Choice'
         type: array
       created:
         type: integer
@@ -43,7 +43,7 @@ definitions:
       usage:
         $ref: '#/definitions/models.Usage'
     type: object
-  models.Choice:
+  dto.Choice:
     properties:
       finish_reason:
         type: string
@@ -52,7 +52,7 @@ definitions:
       message:
         $ref: '#/definitions/models.Message'
     type: object
-  models.ConfigContent:
+  dto.ConfigContent:
     properties:
       text:
         type: string
@@ -60,32 +60,23 @@ definitions:
         description: '"text"'
         type: string
     type: object
-  models.Content:
+  dto.Content:
     properties:
       parts:
         items:
-          $ref: '#/definitions/models.Part'
+          $ref: '#/definitions/dto.Part'
         type: array
       role:
         type: string
     type: object
-  models.ErrorResponse:
-    properties:
-      code:
-        type: string
-      error:
-        description: Can be string or map[string]interface{}
-      type:
-        type: string
-    type: object
-  models.GeminiGenerateRequest:
+  dto.GeminiGenerateRequest:
     properties:
       contents:
         items:
-          $ref: '#/definitions/models.Content'
+          $ref: '#/definitions/dto.Content'
         type: array
       generationConfig:
-        $ref: '#/definitions/models.GenerationConfig'
+        $ref: '#/definitions/dto.GenerationConfig'
       safety_settings:
         items:
           additionalProperties:
@@ -93,16 +84,16 @@ definitions:
           type: object
         type: array
     type: object
-  models.GeminiGenerateResponse:
+  dto.GeminiGenerateResponse:
     properties:
       candidates:
         items:
-          $ref: '#/definitions/models.Candidate'
+          $ref: '#/definitions/dto.Candidate'
         type: array
       usageMetadata:
-        $ref: '#/definitions/models.UsageMetadata'
+        $ref: '#/definitions/dto.UsageMetadata'
     type: object
-  models.GeminiModel:
+  dto.GeminiModel:
     properties:
       description:
         type: string
@@ -117,14 +108,14 @@ definitions:
       version:
         type: string
     type: object
-  models.GeminiModelsResponse:
+  dto.GeminiModelsResponse:
     properties:
       models:
         items:
-          $ref: '#/definitions/models.GeminiModel'
+          $ref: '#/definitions/dto.GeminiModel'
         type: array
     type: object
-  models.GenerationConfig:
+  dto.GenerationConfig:
     properties:
       maxOutputTokens:
         type: integer
@@ -135,21 +126,14 @@ definitions:
       topP:
         type: number
     type: object
-  models.InlineData:
+  dto.InlineData:
     properties:
       data:
         type: string
       mimeType:
         type: string
     type: object
-  models.Message:
-    properties:
-      content:
-        type: string
-      role:
-        type: string
-    type: object
-  models.MessageRequest:
+  dto.MessageRequest:
     properties:
       max_tokens:
         type: integer
@@ -164,11 +148,11 @@ definitions:
       system:
         type: string
     type: object
-  models.MessageResponse:
+  dto.MessageResponse:
     properties:
       content:
         items:
-          $ref: '#/definitions/models.ConfigContent'
+          $ref: '#/definitions/dto.ConfigContent'
         type: array
       id:
         type: string
@@ -184,6 +168,29 @@ definitions:
         type: string
       usage:
         $ref: '#/definitions/models.Usage'
+    type: object
+  dto.Part:
+    properties:
+      inlineData:
+        $ref: '#/definitions/dto.InlineData'
+      text:
+        type: string
+    type: object
+  dto.UsageMetadata:
+    properties:
+      candidatesTokenCount:
+        type: integer
+      promptTokenCount:
+        type: integer
+      totalTokenCount:
+        type: integer
+    type: object
+  models.Message:
+    properties:
+      content:
+        type: string
+      role:
+        type: string
     type: object
   models.ModelData:
     properties:
@@ -211,13 +218,6 @@ definitions:
       object:
         type: string
     type: object
-  models.Part:
-    properties:
-      inlineData:
-        $ref: '#/definitions/models.InlineData'
-      text:
-        type: string
-    type: object
   models.Usage:
     properties:
       completion_tokens:
@@ -229,15 +229,6 @@ definitions:
       prompt_tokens:
         type: integer
       total_tokens:
-        type: integer
-    type: object
-  models.UsageMetadata:
-    properties:
-      candidatesTokenCount:
-        type: integer
-      promptTokenCount:
-        type: integer
-      totalTokenCount:
         type: integer
     type: object
 host: localhost:4981
@@ -253,21 +244,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: Accepts requests in Anthropic Claude format
+      description: Sends a message to the Claude model
       parameters:
-      - description: Message request
+      - description: Message Request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.MessageRequest'
+          $ref: '#/definitions/dto.MessageRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.MessageResponse'
+            $ref: '#/definitions/dto.MessageResponse'
         "400":
           description: Bad Request
           schema:
@@ -278,21 +269,21 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Claude-compatible chat
+      summary: Send Message (Claude)
       tags:
-      - Claude Compatible
+      - Claude
   /claude/v1/messages/count_tokens:
     post:
       consumes:
       - application/json
-      description: Estimates token count for a Claude request
+      description: Estimates the number of tokens for a request
       parameters:
-      - description: Message request
+      - description: Message Request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.MessageRequest'
+          $ref: '#/definitions/dto.MessageRequest'
       produces:
       - application/json
       responses:
@@ -301,29 +292,30 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Count tokens
+      summary: Count Tokens (Claude)
       tags:
-      - Claude Compatible
+      - Claude
   /claude/v1/models:
     get:
       consumes:
       - application/json
-      description: Returns a list of Claude models
+      description: Returns a list of available Claude models
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ModelListResponse'
-      summary: List Claude models (Internal)
+            additionalProperties: true
+            type: object
+      summary: List Claude Models
       tags:
-      - Claude Compatible
+      - Claude
   /claude/v1/models/{model_id}:
     get:
       consumes:
       - application/json
-      description: Returns a specific Claude model by ID
+      description: Get details of a specific Claude model
       parameters:
       - description: Model ID
         in: path
@@ -336,103 +328,112 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ModelData'
-      summary: Get Claude model by ID
+            additionalProperties: true
+            type: object
+      summary: Get Claude Model
       tags:
-      - Claude Compatible
+      - Claude
   /gemini/v1beta/models:
     get:
-      description: Returns models supported by the Gemini provider
+      consumes:
+      - application/json
+      description: Returns a list of models supported by the Gemini API
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.GeminiModelsResponse'
-      summary: List Gemini Models (v1beta)
+            $ref: '#/definitions/dto.GeminiModelsResponse'
+      summary: List Gemini Models
       tags:
-      - Gemini v1beta
+      - Gemini
   /gemini/v1beta/models/{model}:generateContent:
     post:
       consumes:
       - application/json
-      description: Compatible with official Google Gemini API
+      description: Generates content using the Gemini model
       parameters:
-      - description: Model name
+      - description: Model ID
         in: path
         name: model
         required: true
         type: string
-      - description: Gemini request
+      - description: Generate Request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.GeminiGenerateRequest'
+          $ref: '#/definitions/dto.GeminiGenerateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.GeminiGenerateResponse'
-      summary: Generate Content (v1beta)
+            $ref: '#/definitions/dto.GeminiGenerateResponse'
+      summary: Generate Content (Gemini)
       tags:
-      - Gemini v1beta
+      - Gemini
   /gemini/v1beta/models/{model}:streamGenerateContent:
     post:
       consumes:
       - application/json
-      description: Returns a stream of JSON chunks (standard Gemini format)
+      description: Streams generated content using the Gemini model
       parameters:
-      - description: Model name
+      - description: Model ID
         in: path
         name: model
         required: true
         type: string
-      - description: Gemini request
+      - description: Generate Request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.GeminiGenerateRequest'
+          $ref: '#/definitions/dto.GeminiGenerateRequest'
       produces:
       - application/json
-      responses: {}
-      summary: Stream Generate Content (v1beta)
+      responses:
+        "200":
+          description: Chunked response
+          schema:
+            type: string
+      summary: Stream Generate Content (Gemini)
       tags:
-      - Gemini v1beta
+      - Gemini
   /openai/v1/chat/completions:
     post:
       consumes:
       - application/json
-      description: Accepts requests in OpenAI format
+      description: Generates a completion for the chat message
       parameters:
-      - description: Chat request
+      - description: Chat Completion Request
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/models.ChatCompletionRequest'
+          $ref: '#/definitions/dto.ChatCompletionRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.ChatCompletionResponse'
+            $ref: '#/definitions/dto.ChatCompletionResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: OpenAI-compatible chat completions
+            additionalProperties: true
+            type: object
+      summary: Chat Completions (OpenAI)
       tags:
-      - OpenAI Compatible
+      - OpenAI
   /openai/v1/models:
     get:
       consumes:
@@ -445,7 +446,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/models.ModelListResponse'
-      summary: List OpenAI models
+      summary: List OpenAI Models
       tags:
-      - OpenAI Compatible
+      - OpenAI
 swagger: "2.0"

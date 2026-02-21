@@ -48,7 +48,23 @@
 
 ## ⚡ Quick Start (30 seconds)
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Run (Recommended)
+
+```bash
+docker run -d -p 4981:4981 \
+  -e GEMINI_1PSID="your_psid_here" \
+  -e GEMINI_1PSIDTS="your_psidts_here" \
+  -e GEMINI_REFRESH_INTERVAL=30 \
+  -e APP_ENV=production \
+  -v ./cookies:/home/appuser/.cookies \
+  --tmpfs /tmp:rw,size=512m \
+  --tmpfs /home/appuser/.cache:rw,size=256m \
+  --name gemini-web-to-api \
+  --restart unless-stopped \
+  ghcr.io/ntthanh2603/gemini-web-to-api:latest
+```
+
+### Option 2: Docker Compose
 
 1. **Clone the repository**:
 
@@ -82,22 +98,6 @@
    ```
 
 5. **Done!** Your Gemini Web To API is running at `http://localhost:4981`
-
-### Option 2: Docker Run
-
-```bash
-docker run -d -p 4981:4981 \
-  -e GEMINI_1PSID="your_psid_here" \
-  -e GEMINI_1PSIDTS="your_psidts_here" \
-  -e GEMINI_REFRESH_INTERVAL=30 \
-  -e APP_ENV=production \
-  -v ./cookies:/home/appuser/.cookies \
-  --tmpfs /tmp:rw,size=512m \
-  --tmpfs /home/appuser/.cache:rw,size=256m \
-  --name gemini-web-to-api \
-  --restart unless-stopped \
-  ghcr.io/ntthanh2603/gemini-web-to-api:latest
-```
 
 ---
 

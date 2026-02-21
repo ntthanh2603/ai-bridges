@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/claude/v1/messages": {
             "post": {
-                "description": "Accepts requests in Anthropic Claude format",
+                "description": "Sends a message to the Claude model",
                 "consumes": [
                     "application/json"
                 ],
@@ -25,17 +25,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Claude Compatible"
+                    "Claude"
                 ],
-                "summary": "Claude-compatible chat",
+                "summary": "Send Message (Claude)",
                 "parameters": [
                     {
-                        "description": "Message request",
+                        "description": "Message Request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.MessageRequest"
+                            "$ref": "#/definitions/dto.MessageRequest"
                         }
                     }
                 ],
@@ -43,7 +43,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.MessageResponse"
+                            "$ref": "#/definitions/dto.MessageResponse"
                         }
                     },
                     "400": {
@@ -65,7 +65,7 @@ const docTemplate = `{
         },
         "/claude/v1/messages/count_tokens": {
             "post": {
-                "description": "Estimates token count for a Claude request",
+                "description": "Estimates the number of tokens for a request",
                 "consumes": [
                     "application/json"
                 ],
@@ -73,17 +73,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Claude Compatible"
+                    "Claude"
                 ],
-                "summary": "Count tokens",
+                "summary": "Count Tokens (Claude)",
                 "parameters": [
                     {
-                        "description": "Message request",
+                        "description": "Message Request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.MessageRequest"
+                            "$ref": "#/definitions/dto.MessageRequest"
                         }
                     }
                 ],
@@ -100,7 +100,7 @@ const docTemplate = `{
         },
         "/claude/v1/models": {
             "get": {
-                "description": "Returns a list of Claude models",
+                "description": "Returns a list of available Claude models",
                 "consumes": [
                     "application/json"
                 ],
@@ -108,14 +108,15 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Claude Compatible"
+                    "Claude"
                 ],
-                "summary": "List Claude models (Internal)",
+                "summary": "List Claude Models",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ModelListResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -123,7 +124,7 @@ const docTemplate = `{
         },
         "/claude/v1/models/{model_id}": {
             "get": {
-                "description": "Returns a specific Claude model by ID",
+                "description": "Get details of a specific Claude model",
                 "consumes": [
                     "application/json"
                 ],
@@ -131,9 +132,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Claude Compatible"
+                    "Claude"
                 ],
-                "summary": "Get Claude model by ID",
+                "summary": "Get Claude Model",
                 "parameters": [
                     {
                         "type": "string",
@@ -147,7 +148,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ModelData"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -155,19 +157,22 @@ const docTemplate = `{
         },
         "/gemini/v1beta/models": {
             "get": {
-                "description": "Returns models supported by the Gemini provider",
+                "description": "Returns a list of models supported by the Gemini API",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Gemini v1beta"
+                    "Gemini"
                 ],
-                "summary": "List Gemini Models (v1beta)",
+                "summary": "List Gemini Models",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.GeminiModelsResponse"
+                            "$ref": "#/definitions/dto.GeminiModelsResponse"
                         }
                     }
                 }
@@ -175,7 +180,7 @@ const docTemplate = `{
         },
         "/gemini/v1beta/models/{model}:generateContent": {
             "post": {
-                "description": "Compatible with official Google Gemini API",
+                "description": "Generates content using the Gemini model",
                 "consumes": [
                     "application/json"
                 ],
@@ -183,24 +188,24 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Gemini v1beta"
+                    "Gemini"
                 ],
-                "summary": "Generate Content (v1beta)",
+                "summary": "Generate Content (Gemini)",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model name",
+                        "description": "Model ID",
                         "name": "model",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Gemini request",
+                        "description": "Generate Request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.GeminiGenerateRequest"
+                            "$ref": "#/definitions/dto.GeminiGenerateRequest"
                         }
                     }
                 ],
@@ -208,7 +213,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.GeminiGenerateResponse"
+                            "$ref": "#/definitions/dto.GeminiGenerateResponse"
                         }
                     }
                 }
@@ -216,7 +221,7 @@ const docTemplate = `{
         },
         "/gemini/v1beta/models/{model}:streamGenerateContent": {
             "post": {
-                "description": "Returns a stream of JSON chunks (standard Gemini format)",
+                "description": "Streams generated content using the Gemini model",
                 "consumes": [
                     "application/json"
                 ],
@@ -224,33 +229,40 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Gemini v1beta"
+                    "Gemini"
                 ],
-                "summary": "Stream Generate Content (v1beta)",
+                "summary": "Stream Generate Content (Gemini)",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model name",
+                        "description": "Model ID",
                         "name": "model",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Gemini request",
+                        "description": "Generate Request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.GeminiGenerateRequest"
+                            "$ref": "#/definitions/dto.GeminiGenerateRequest"
                         }
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "200": {
+                        "description": "Chunked response",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         },
         "/openai/v1/chat/completions": {
             "post": {
-                "description": "Accepts requests in OpenAI format",
+                "description": "Generates a completion for the chat message",
                 "consumes": [
                     "application/json"
                 ],
@@ -258,17 +270,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OpenAI Compatible"
+                    "OpenAI"
                 ],
-                "summary": "OpenAI-compatible chat completions",
+                "summary": "Chat Completions (OpenAI)",
                 "parameters": [
                     {
-                        "description": "Chat request",
+                        "description": "Chat Completion Request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ChatCompletionRequest"
+                            "$ref": "#/definitions/dto.ChatCompletionRequest"
                         }
                     }
                 ],
@@ -276,19 +288,21 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.ChatCompletionResponse"
+                            "$ref": "#/definitions/dto.ChatCompletionResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -304,9 +318,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "OpenAI Compatible"
+                    "OpenAI"
                 ],
-                "summary": "List OpenAI models",
+                "summary": "List OpenAI Models",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -319,11 +333,11 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "models.Candidate": {
+        "dto.Candidate": {
             "type": "object",
             "properties": {
                 "content": {
-                    "$ref": "#/definitions/models.Content"
+                    "$ref": "#/definitions/dto.Content"
                 },
                 "finishMessage": {
                     "type": "string"
@@ -336,7 +350,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ChatCompletionRequest": {
+        "dto.ChatCompletionRequest": {
             "type": "object",
             "properties": {
                 "max_tokens": {
@@ -359,13 +373,13 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ChatCompletionResponse": {
+        "dto.ChatCompletionResponse": {
             "type": "object",
             "properties": {
                 "choices": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Choice"
+                        "$ref": "#/definitions/dto.Choice"
                     }
                 },
                 "created": {
@@ -385,7 +399,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Choice": {
+        "dto.Choice": {
             "type": "object",
             "properties": {
                 "finish_reason": {
@@ -399,7 +413,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ConfigContent": {
+        "dto.ConfigContent": {
             "type": "object",
             "properties": {
                 "text": {
@@ -411,13 +425,13 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Content": {
+        "dto.Content": {
             "type": "object",
             "properties": {
                 "parts": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Part"
+                        "$ref": "#/definitions/dto.Part"
                     }
                 },
                 "role": {
@@ -425,31 +439,17 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "error": {
-                    "description": "Can be string or map[string]interface{}"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.GeminiGenerateRequest": {
+        "dto.GeminiGenerateRequest": {
             "type": "object",
             "properties": {
                 "contents": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Content"
+                        "$ref": "#/definitions/dto.Content"
                     }
                 },
                 "generationConfig": {
-                    "$ref": "#/definitions/models.GenerationConfig"
+                    "$ref": "#/definitions/dto.GenerationConfig"
                 },
                 "safety_settings": {
                     "type": "array",
@@ -462,21 +462,21 @@ const docTemplate = `{
                 }
             }
         },
-        "models.GeminiGenerateResponse": {
+        "dto.GeminiGenerateResponse": {
             "type": "object",
             "properties": {
                 "candidates": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Candidate"
+                        "$ref": "#/definitions/dto.Candidate"
                     }
                 },
                 "usageMetadata": {
-                    "$ref": "#/definitions/models.UsageMetadata"
+                    "$ref": "#/definitions/dto.UsageMetadata"
                 }
             }
         },
-        "models.GeminiModel": {
+        "dto.GeminiModel": {
             "type": "object",
             "properties": {
                 "description": {
@@ -499,18 +499,18 @@ const docTemplate = `{
                 }
             }
         },
-        "models.GeminiModelsResponse": {
+        "dto.GeminiModelsResponse": {
             "type": "object",
             "properties": {
                 "models": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.GeminiModel"
+                        "$ref": "#/definitions/dto.GeminiModel"
                     }
                 }
             }
         },
-        "models.GenerationConfig": {
+        "dto.GenerationConfig": {
             "type": "object",
             "properties": {
                 "maxOutputTokens": {
@@ -527,7 +527,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.InlineData": {
+        "dto.InlineData": {
             "type": "object",
             "properties": {
                 "data": {
@@ -538,18 +538,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Message": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.MessageRequest": {
+        "dto.MessageRequest": {
             "type": "object",
             "properties": {
                 "max_tokens": {
@@ -572,13 +561,13 @@ const docTemplate = `{
                 }
             }
         },
-        "models.MessageResponse": {
+        "dto.MessageResponse": {
             "type": "object",
             "properties": {
                 "content": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ConfigContent"
+                        "$ref": "#/definitions/dto.ConfigContent"
                     }
                 },
                 "id": {
@@ -600,6 +589,42 @@ const docTemplate = `{
                 },
                 "usage": {
                     "$ref": "#/definitions/models.Usage"
+                }
+            }
+        },
+        "dto.Part": {
+            "type": "object",
+            "properties": {
+                "inlineData": {
+                    "$ref": "#/definitions/dto.InlineData"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UsageMetadata": {
+            "type": "object",
+            "properties": {
+                "candidatesTokenCount": {
+                    "type": "integer"
+                },
+                "promptTokenCount": {
+                    "type": "integer"
+                },
+                "totalTokenCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.Message": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
                 }
             }
         },
@@ -643,17 +668,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Part": {
-            "type": "object",
-            "properties": {
-                "inlineData": {
-                    "$ref": "#/definitions/models.InlineData"
-                },
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
         "models.Usage": {
             "type": "object",
             "properties": {
@@ -670,20 +684,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "total_tokens": {
-                    "type": "integer"
-                }
-            }
-        },
-        "models.UsageMetadata": {
-            "type": "object",
-            "properties": {
-                "candidatesTokenCount": {
-                    "type": "integer"
-                },
-                "promptTokenCount": {
-                    "type": "integer"
-                },
-                "totalTokenCount": {
                     "type": "integer"
                 }
             }

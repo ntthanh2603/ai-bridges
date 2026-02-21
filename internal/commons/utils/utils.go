@@ -1,4 +1,4 @@
-package handlers
+package utils
 
 import (
 	"bufio"
@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"gemini-web-to-api/internal/models"
+	"gemini-web-to-api/internal/commons/models"
 
 	"go.uber.org/zap"
 )
 
-// buildPromptFromMessages constructs a unified prompt from messages
-func buildPromptFromMessages(messages []models.Message, systemPrompt string) string {
+// BuildPromptFromMessages constructs a unified prompt from messages
+func BuildPromptFromMessages(messages []models.Message, systemPrompt string) string {
 	var promptBuilder strings.Builder
 
 	if systemPrompt != "" {
@@ -34,8 +34,8 @@ func buildPromptFromMessages(messages []models.Message, systemPrompt string) str
 	return strings.TrimSpace(promptBuilder.String())
 }
 
-// validateMessages validates that messages array is not empty and not all empty
-func validateMessages(messages []models.Message) error {
+// ValidateMessages validates that messages array is not empty and not all empty
+func ValidateMessages(messages []models.Message) error {
 	if len(messages) == 0 {
 		return fmt.Errorf("messages array cannot be empty")
 	}
@@ -55,8 +55,8 @@ func validateMessages(messages []models.Message) error {
 	return nil
 }
 
-// validateGenerationRequest validates common generation request parameters
-func validateGenerationRequest(model string, maxTokens int, temperature float32) error {
+// ValidateGenerationRequest validates common generation request parameters
+func ValidateGenerationRequest(model string, maxTokens int, temperature float32) error {
 	if maxTokens < 0 {
 		return fmt.Errorf("max_tokens must be non-negative")
 	}
@@ -68,8 +68,8 @@ func validateGenerationRequest(model string, maxTokens int, temperature float32)
 	return nil
 }
 
-// marshalJSONSafely marshals JSON and logs errors instead of silently failing
-func marshalJSONSafely(log *zap.Logger, v interface{}) []byte {
+// MarshalJSONSafely marshals JSON and logs errors instead of silently failing
+func MarshalJSONSafely(log *zap.Logger, v interface{}) []byte {
 	data, err := json.Marshal(v)
 	if err != nil {
 		log.Error("Failed to marshal JSON", zap.Error(err), zap.Any("value", v))
@@ -78,9 +78,9 @@ func marshalJSONSafely(log *zap.Logger, v interface{}) []byte {
 	return data
 }
 
-// sendStreamChunk writes a JSON chunk to the stream writer with error handling
-func sendStreamChunk(w *bufio.Writer, log *zap.Logger, chunk interface{}) error {
-	data := marshalJSONSafely(log, chunk)
+// SendStreamChunk writes a JSON chunk to the stream writer with error handling
+func SendStreamChunk(w *bufio.Writer, log *zap.Logger, chunk interface{}) error {
+	data := MarshalJSONSafely(log, chunk)
 	if _, err := w.Write(data); err != nil {
 		log.Error("Failed to write chunk", zap.Error(err))
 		return err
@@ -96,9 +96,9 @@ func sendStreamChunk(w *bufio.Writer, log *zap.Logger, chunk interface{}) error 
 	return nil
 }
 
-// sendSSEChunk writes a Server-Sent Event chunk
-func sendSSEChunk(w *bufio.Writer, log *zap.Logger, event string, chunk interface{}) error {
-	data := marshalJSONSafely(log, chunk)
+// SendSSEChunk writes a Server-Sent Event chunk
+func SendSSEChunk(w *bufio.Writer, log *zap.Logger, event string, chunk interface{}) error {
+	data := MarshalJSONSafely(log, chunk)
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, string(data)); err != nil {
 		log.Error("Failed to write SSE chunk", zap.Error(err))
 		return err
@@ -110,8 +110,8 @@ func sendSSEChunk(w *bufio.Writer, log *zap.Logger, event string, chunk interfac
 	return nil
 }
 
-// splitResponseIntoChunks simulates streaming by splitting response into chunks
-func splitResponseIntoChunks(text string, delayMs int) []string {
+// SplitResponseIntoChunks simulates streaming by splitting response into chunks
+func SplitResponseIntoChunks(text string, delayMs int) []string {
 	words := strings.Split(text, " ")
 	var chunks []string
 	for i, word := range words {
@@ -124,8 +124,8 @@ func splitResponseIntoChunks(text string, delayMs int) []string {
 	return chunks
 }
 
-// sleepWithCancel sleeps for the specified duration or until context is cancelled
-func sleepWithCancel(ctx context.Context, duration time.Duration) bool {
+// SleepWithCancel sleeps for the specified duration or until context is cancelled
+func SleepWithCancel(ctx context.Context, duration time.Duration) bool {
 	select {
 	case <-time.After(duration):
 		return true
@@ -134,8 +134,8 @@ func sleepWithCancel(ctx context.Context, duration time.Duration) bool {
 	}
 }
 
-// errorToResponse converts an error to a standardized error response
-func errorToResponse(err error, errorType string) models.ErrorResponse {
+// ErrorToResponse converts an error to a standardized error response
+func ErrorToResponse(err error, errorType string) models.ErrorResponse {
 	return models.ErrorResponse{
 		Error: models.Error{
 			Message: err.Error(),

@@ -58,7 +58,6 @@ func NewProviderManager(log *zap.Logger) *ProviderManager {
 // Register registers a concrete provider with the manager
 func (pm *ProviderManager) Register(name string, provider Provider) {
 	pm.factory.Register(name, provider)
-	pm.log.Debug("Provider registered", zap.String("provider", name))
 }
 
 // SelectProvider selects a provider by type/name to be used as the active provider
@@ -69,7 +68,6 @@ func (pm *ProviderManager) SelectProvider(providerType string) error {
 	}
 	pm.selectedType = providerType
 	pm.selectedName = provider.GetName()
-	pm.log.Debug("Provider selected", zap.String("provider_type", providerType), zap.String("provider_name", pm.selectedName))
 	return nil
 }
 

@@ -1,23 +1,21 @@
-package gemini
+package providers
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"gemini-web-to-api/internal/providers"
 )
 
-// ChatSession implements providers.ChatSession for Gemini
-type ChatSession struct {
-	client   *Client
+// GeminiChatSession implements ChatSession interface for Gemini
+type GeminiChatSession struct {
+	client   *Client // Refers to providers.Client
 	model    string
-	metadata *providers.SessionMetadata
-	history  []providers.Message
+	metadata *SessionMetadata
+	history  []Message
 }
 
 // SendMessage sends a message in the chat session
-func (s *ChatSession) SendMessage(ctx context.Context, message string, options ...providers.GenerateOption) (*providers.Response, error) {
+func (s *GeminiChatSession) SendMessage(ctx context.Context, message string, options ...GenerateOption) (*Response, error) {
 	s.client.reqMu.Lock()
 	defer s.client.reqMu.Unlock()
 	
@@ -63,30 +61,30 @@ func (s *ChatSession) SendMessage(ctx context.Context, message string, options .
 	if response.Metadata != nil {
 		if cid, ok := response.Metadata["cid"].(string); ok && cid != "" {
 			if s.metadata == nil {
-				s.metadata = &providers.SessionMetadata{}
+				s.metadata = &SessionMetadata{}
 			}
 			s.metadata.ConversationID = cid
 		}
 		if rid, ok := response.Metadata["rid"].(string); ok && rid != "" {
 			if s.metadata == nil {
-				s.metadata = &providers.SessionMetadata{}
+				s.metadata = &SessionMetadata{}
 			}
 			s.metadata.ResponseID = rid
 		}
 		if rcid, ok := response.Metadata["rcid"].(string); ok && rcid != "" {
 			if s.metadata == nil {
-				s.metadata = &providers.SessionMetadata{}
+				s.metadata = &SessionMetadata{}
 			}
 			s.metadata.ChoiceID = rcid
 		}
 	}
 
 	// Update history
-	s.history = append(s.history, providers.Message{
+	s.history = append(s.history, Message{
 		Role:    "user",
 		Content: message,
 	})
-	s.history = append(s.history, providers.Message{
+	s.history = append(s.history, Message{
 		Role:    "model",
 		Content: response.Text,
 	})
@@ -95,9 +93,9 @@ func (s *ChatSession) SendMessage(ctx context.Context, message string, options .
 }
 
 // GetMetadata returns session metadata
-func (s *ChatSession) GetMetadata() *providers.SessionMetadata {
+func (s *GeminiChatSession) GetMetadata() *SessionMetadata {
 	if s.metadata == nil {
-		return &providers.SessionMetadata{
+		return &SessionMetadata{
 			Model: s.model,
 		}
 	}
@@ -106,18 +104,18 @@ func (s *ChatSession) GetMetadata() *providers.SessionMetadata {
 }
 
 // GetHistory returns conversation history
-func (s *ChatSession) GetHistory() []providers.Message {
+func (s *GeminiChatSession) GetHistory() []Message {
 	return s.history
 }
 
 // Clear clears the conversation history
-func (s *ChatSession) Clear() {
-	s.history = []providers.Message{}
+func (s *GeminiChatSession) Clear() {
+	s.history = []Message{}
 	s.metadata = nil
 }
 
 // buildMetadata builds metadata array for API request
-func (s *ChatSession) buildMetadata() []interface{} {
+func (s *GeminiChatSession) buildMetadata() []interface{} {
 	if s.metadata == nil {
 		return []interface{}{nil, nil, nil}
 	}

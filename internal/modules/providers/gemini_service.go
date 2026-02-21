@@ -1,4 +1,4 @@
-package gemini
+package providers
 
 import (
 	"compress/gzip"
@@ -17,8 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"gemini-web-to-api/internal/config"
-	"gemini-web-to-api/internal/providers"
+	"gemini-web-to-api/internal/commons/configs"
 
 	"github.com/imroc/req/v3"
 	"go.uber.org/zap"
@@ -51,7 +50,7 @@ const (
 	defaultRefreshIntervalMinutes = 30
 )
 
-func NewClient(cfg *config.Config, log *zap.Logger) *Client {
+func NewClient(cfg *configs.Config, log *zap.Logger) *Client {
 	cookies := &CookieStore{
 		Secure1PSID:   cfg.Gemini.Secure1PSID,
 		Secure1PSIDTS: cfg.Gemini.Secure1PSIDTS,
@@ -91,7 +90,6 @@ func (c *Client) Init(ctx context.Context) error {
 		
 		// If config has a new PSIDTS that differs from cache, clear cache and use config
 		if configPSIDTS != "" && cachedTS != "" && configPSIDTS != cachedTS {
-			c.log.Info("Config has new __Secure-1PSIDTS, clearing old cache")
 			_ = c.ClearCookieCache()
 			// Keep using the config value (already set above)
 		} else if err == nil && cachedTS != "" && configPSIDTS == "" {
@@ -386,11 +384,11 @@ func (c *Client) GetCookies() *CookieStore {
 	}
 }
 
-func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...providers.GenerateOption) (*providers.Response, error) {
+func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...GenerateOption) (*Response, error) {
 	c.reqMu.Lock()
 	defer c.reqMu.Unlock()
 
-	config := &providers.GenerateConfig{
+	config := &GenerateConfig{
 		Model: "gemini-pro", // default
 	}
 	for _, opt := range options {
@@ -438,19 +436,19 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	return c.parseResponse(resp.String())
 }
 
-func (c *Client) StartChat(options ...providers.ChatOption) providers.ChatSession {
-	config := &providers.ChatConfig{
+func (c *Client) StartChat(options ...ChatOption) ChatSession {
+	config := &ChatConfig{
 		Model: "gemini-pro",
 	}
 	for _, opt := range options {
 		opt(config)
 	}
 
-	return &ChatSession{
+	return &GeminiChatSession{
 		client:   c,
 		model:    config.Model,
 		metadata: config.Metadata,
-		history:  []providers.Message{},
+		history:  []Message{},
 	}
 }
 
@@ -472,9 +470,10 @@ func (c *Client) IsHealthy() bool {
 	return c.healthy
 }
 
-func (c *Client) ListModels() []providers.ModelInfo {
-	var models []providers.ModelInfo
-	for _, m := range providers.SupportedModels {
+func (c *Client) ListModels() []ModelInfo {
+	var models []ModelInfo
+	// Assuming SupportedModels is defined in this package now
+	for _, m := range SupportedModels {
 		if m.Provider == "gemini" {
 			models = append(models, m)
 		}
@@ -483,7 +482,7 @@ func (c *Client) ListModels() []providers.ModelInfo {
 }
 
 // parseResponse parses Gemini's response format
-func (c *Client) parseResponse(text string) (*providers.Response, error) {
+func (c *Client) parseResponse(text string) (*Response, error) {
 	lines := strings.Split(text, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -532,7 +531,7 @@ func (c *Client) parseResponse(text string) (*providers.Response, error) {
 										}
 									}
 
-									return &providers.Response{
+									return &Response{
 										Text: resText,
 										Metadata: map[string]any{
 											"cid":  cid,
@@ -665,6 +664,21 @@ func (c *Client) ClearCookieCache() error {
 		return err
 	}
 	
-	c.log.Debug("Cleared cookie cache", zap.String("file", filename))
 	return nil
+}
+
+const (
+EndpointGoogle        = "https://www.google.com"
+EndpointInit          = "https://gemini.google.com/app"
+EndpointGenerate      = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
+EndpointRotateCookies = "https://accounts.google.com/RotateCookies"
+EndpointBatchExec     = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
+)
+
+var DefaultHeaders = map[string]string{
+"Content-Type":  "application/x-www-form-urlencoded;charset=utf-8",
+"Origin":        "https://gemini.google.com",
+"Referer":       "https://gemini.google.com/",
+"User-Agent":    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+"X-Same-Domain": "1",
 }

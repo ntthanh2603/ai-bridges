@@ -1,12 +1,8 @@
 package main
 
 import (
-	"context"
-
-	"gemini-web-to-api/internal/config"
-	"gemini-web-to-api/internal/handlers"
-	"gemini-web-to-api/internal/providers"
-	"gemini-web-to-api/internal/providers/gemini"
+	"gemini-web-to-api/internal/commons/configs"
+	"gemini-web-to-api/internal/modules"
 	"gemini-web-to-api/internal/server"
 	"gemini-web-to-api/pkg/logger"
 
@@ -24,30 +20,13 @@ import (
 func main() {
 	fx.New(
 		fx.Provide(
-			config.New,
-			func(cfg *config.Config) (*zap.Logger, error) {
+			configs.New,
+			func(cfg *configs.Config) (*zap.Logger, error) {
 				return logger.New(cfg.LogLevel)
 			},
-			providers.NewProviderManager,
-			gemini.NewClient,
-			handlers.NewGeminiHandler,
-			handlers.NewOpenAIHandler,
-			handlers.NewClaudeHandler,
 		),
-		fx.Invoke(
-			server.New,
-		),
-		fx.Invoke(func(pm *providers.ProviderManager, c *gemini.Client, log *zap.Logger) {
-			pm.Register("gemini", c)
-			// Initialize all providers (non-blocking, logs warnings on failure)
-			pm.InitAllProviders(context.Background())
-			// Select Gemini as the provider
-			if err := pm.SelectProvider("gemini"); err != nil {
-				log.Error("Failed to select Gemini provider", zap.Error(err))
-			} else {
-				log.Debug("Gemini provider selected")
-			}
-		}),
-		fx.NopLogger, 
+		server.Module,
+		modules.Module,
+		fx.NopLogger,
 	).Run()
 }

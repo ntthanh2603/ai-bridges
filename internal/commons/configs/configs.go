@@ -1,4 +1,4 @@
-package config
+package configs
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ type Config struct {
 	Gemini GeminiConfig
 	Claude ClaudeConfig
 	OpenAI OpenAIConfig
-	Server ServerConfig
+	Server ServerConfig	
 	LogLevel string
 }
 
