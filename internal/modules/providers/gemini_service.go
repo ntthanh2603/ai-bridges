@@ -291,8 +291,35 @@ func (c *Client) startAutoRefresh() {
 	for {
 		select {
 		case <-ticker.C:
-			if err := c.RotateCookies(); err != nil {
-				c.log.Error("Cookie rotation failed", zap.Error(err))
+			c.log.Debug("Starting scheduled cookie refresh")
+			rotateErr := c.RotateCookies()
+			if rotateErr != nil {
+				// RotateCookies failed (Google may not return a new cookie every time)
+				// Fallback: try to refresh the session token (SNlM0e/at) to keep client alive
+				c.log.Warn("Cookie rotation failed, falling back to session token refresh", zap.Error(rotateErr))
+				if sessionErr := c.refreshSessionToken(); sessionErr != nil {
+					// Both methods failed — mark client as unhealthy so callers know
+					c.log.Error("Session token refresh also failed, marking client unhealthy",
+						zap.NamedError("rotation_error", rotateErr),
+						zap.NamedError("session_error", sessionErr),
+					)
+					c.mu.Lock()
+					c.healthy = false
+					c.mu.Unlock()
+				} else {
+					c.log.Info("Session token refreshed successfully after rotation failure")
+					// Ensure client is marked healthy since session token is valid
+					c.mu.Lock()
+					c.healthy = true
+					c.mu.Unlock()
+				}
+			} else {
+				// Rotation succeeded — also refresh session token to keep SNlM0e/at up to date
+				if sessionErr := c.refreshSessionToken(); sessionErr != nil {
+					c.log.Warn("Cookie rotated but session token refresh failed", zap.Error(sessionErr))
+				} else {
+					c.log.Info("Cookie and session token refreshed successfully")
+				}
 			}
 		case <-c.stopRefresh:
 			return

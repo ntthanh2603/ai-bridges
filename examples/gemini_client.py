@@ -11,7 +11,7 @@ client = genai.Client(
 
 response = client.models.generate_content(
     model="gemini-1.5-flash",
-    contents="How to make a REST API call in Python?"
+    contents="Hello?"
 )
 
 print(response.text)
