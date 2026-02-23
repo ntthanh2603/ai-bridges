@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// @title AI Bridges API
+// @title Gemini Web To API
 // @version 1.0
-// @description 🚀 High-performance WebAI-to-API gateway. Seamlessly bridge Google Gemini into standardized OpenAI, Anthropic (Claude), and Google Native REST APIs.
+// @description ✨Reverse-engineered API for Gemini web app. It can be used as a genuine API key from OpenAI, Gemini, and Claude.
 // @host localhost:4981
 // @BasePath /
 func main() {

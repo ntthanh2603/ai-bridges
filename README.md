@@ -55,6 +55,7 @@ docker run -d -p 4981:4981 \
   -e GEMINI_1PSID="your_psid_here" \
   -e GEMINI_1PSIDTS="your_psidts_here" \
   -e GEMINI_REFRESH_INTERVAL=30 \
+  -e GEMINI_MAX_RETRIES=3 \
   -e APP_ENV=production \
   -v ./cookies:/home/appuser/.cookies \
   --tmpfs /tmp:rw,size=512m \
@@ -116,12 +117,13 @@ docker run -d -p 4981:4981 \
 
 ### Environment Variables
 
-| Variable                  | Required | Default | Description                             |
-| ------------------------- | -------- | ------- | --------------------------------------- |
-| `GEMINI_1PSID`            | ✅ Yes   | -       | Main session cookie from Gemini         |
-| `GEMINI_1PSIDTS`          | ✅ Yes   | -       | Timestamp cookie (prevents auth errors) |
-| `GEMINI_REFRESH_INTERVAL` | ❌ No    | 30      | Cookie rotation interval (minutes)      |
-| `PORT`                    | ❌ No    | 4981    | Server port                             |
+| Variable                  | Required | Default | Description                                          |
+| ------------------------- | -------- | ------- | ---------------------------------------------------- |
+| `GEMINI_1PSID`            | ✅ Yes   | -       | Main session cookie from Gemini                      |
+| `GEMINI_1PSIDTS`          | ✅ Yes   | -       | Timestamp cookie (prevents auth errors)              |
+| `GEMINI_REFRESH_INTERVAL` | ❌ No    | 30      | Cookie rotation interval (minutes)                   |
+| `GEMINI_MAX_RETRIES`      | ❌ No    | 3       | Max retry attempts when API call fails (network/5xx) |
+| `PORT`                    | ❌ No    | 4981    | Server port                                          |
 
 ### Configuration Priority
 

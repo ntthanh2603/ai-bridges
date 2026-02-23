@@ -234,10 +234,9 @@ definitions:
 host: localhost:4981
 info:
   contact: {}
-  description: "\U0001F680 High-performance WebAI-to-API gateway. Seamlessly bridge
-    Google Gemini into standardized OpenAI, Anthropic (Claude), and Google Native
-    REST APIs."
-  title: AI Bridges API
+  description: ✨Reverse-engineered API for Gemini web app. It can be used as a genuine
+    API key from OpenAI, Gemini, and Claude.
+  title: Gemini Web To API
   version: "1.0"
 paths:
   /claude/v1/messages:

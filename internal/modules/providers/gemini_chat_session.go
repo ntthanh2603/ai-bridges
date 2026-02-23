@@ -16,10 +16,12 @@ type GeminiChatSession struct {
 
 // SendMessage sends a message in the chat session
 func (s *GeminiChatSession) SendMessage(ctx context.Context, message string, options ...GenerateOption) (*Response, error) {
-	s.client.reqMu.Lock()
-	defer s.client.reqMu.Unlock()
-	
-	if s.client.at == "" {
+	// Read session token safely — short critical section, no lock held during HTTP call
+	s.client.mu.RLock()
+	at := s.client.at
+	s.client.mu.RUnlock()
+
+	if at == "" {
 		return nil, fmt.Errorf("client not initialized")
 	}
 
@@ -35,13 +37,14 @@ func (s *GeminiChatSession) SendMessage(ctx context.Context, message string, opt
 	outerJSON, _ := json.Marshal(outer)
 
 	formData := map[string]string{
-		"at":    s.client.at,
+		"at":    at,
 		"f.req": string(outerJSON),
 	}
 
 	resp, err := s.client.httpClient.R().
+		SetContext(ctx).
 		SetFormData(formData).
-		SetQueryParam("at", s.client.at).
+		SetQueryParam("at", at).
 		Post(EndpointGenerate)
 
 	if err != nil {

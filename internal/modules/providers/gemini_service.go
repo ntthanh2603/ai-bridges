@@ -26,17 +26,15 @@ import (
 type Client struct {
 	httpClient *req.Client
 	cookies    *CookieStore
-	at         string 
-	mu         sync.RWMutex
+	at         string
+	mu         sync.RWMutex // protects: at, healthy
 	healthy    bool
 	log        *zap.Logger
-	
+
 	autoRefresh     bool
 	refreshInterval time.Duration
 	stopRefresh     chan struct{}
 	maxRetries      int
-
-	reqMu sync.Mutex
 }
 
 type CookieStore struct {
@@ -417,9 +415,6 @@ func (c *Client) GetCookies() *CookieStore {
 }
 
 func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...GenerateOption) (*Response, error) {
-	c.reqMu.Lock()
-	defer c.reqMu.Unlock()
-
 	config := &GenerateConfig{
 		Model: "gemini-pro", // default
 	}
@@ -427,7 +422,12 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		opt(config)
 	}
 
-	if c.at == "" {
+	// Read session token safely — short critical section, no lock held during HTTP call
+	c.mu.RLock()
+	at := c.at
+	c.mu.RUnlock()
+
+	if at == "" {
 		return nil, errors.New("client not initialized")
 	}
 
@@ -443,7 +443,7 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	outerJSON, _ := json.Marshal(outer)
 
 	formData := map[string]string{
-		"at":    c.at,
+		"at":    at,
 		"f.req": string(outerJSON),
 	}
 
@@ -451,6 +451,8 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
+
+	totalStart := time.Now()
 
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -470,18 +472,18 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 			}
 		}
 
-		startTime := time.Now()
+		httpStart := time.Now()
 		resp, err := c.httpClient.R().
 			SetContext(ctx).
 			SetFormData(formData).
-			SetQueryParam("at", c.at).
+			SetQueryParam("at", at).
 			Post(EndpointGenerate)
 
-		duration := time.Since(startTime)
+		httpDuration := time.Since(httpStart)
 		if err != nil {
 			c.log.Warn("Generate request failed, will retry",
 				zap.Error(err),
-				zap.Duration("duration", duration),
+				zap.Duration("http_duration", httpDuration),
 				zap.Int("attempt", attempt),
 			)
 			lastErr = err
@@ -501,7 +503,10 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 			return nil, lastErr
 		}
 
+		parseStart := time.Now()
 		result, parseErr := c.parseResponse(resp.String())
+		parseDuration := time.Since(parseStart)
+
 		if parseErr != nil {
 			lastErr = parseErr
 			c.log.Warn("Failed to parse response, will retry",
@@ -510,6 +515,14 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 			)
 			continue
 		}
+
+		c.log.Debug("GenerateContent timing",
+			zap.Duration("gemini_server_rtt", httpDuration),
+			zap.Duration("parse_duration", parseDuration),
+			zap.Duration("total_duration", time.Since(totalStart)),
+			zap.Int("attempt", attempt),
+			zap.Int("response_bytes", len(resp.String())),
+		)
 
 		if attempt > 1 {
 			c.log.Info("GenerateContent succeeded after retry", zap.Int("attempt", attempt))
