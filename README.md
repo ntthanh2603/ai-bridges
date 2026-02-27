@@ -95,7 +95,7 @@ docker run -d -p 4981:4981 \
    ```bash
    curl -X POST http://localhost:4981/openai/v1/chat/completions \
      -H "Content-Type: application/json" \
-     -d '{"model": "gemini-pro", "messages": [{"role": "user", "content": "Hello!"}]}'
+     -d '{"model": "gemini-advanced", "messages": [{"role": "user", "content": "Hello!"}]}'
    ```
 
 5. **Done!** Your Gemini Web To API is running at `http://localhost:4981`
@@ -146,7 +146,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gemini-pro",
+    model="gemini-advanced",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 print(response.choices[0].message.content)
@@ -159,7 +159,7 @@ from langchain_anthropic import ChatAnthropic
 
 llm = ChatAnthropic(
     base_url="http://localhost:4981/claude",
-    model="claude-3-5-sonnet-20240620",
+    model="gemini-advanced",
     api_key="not-needed"
 )
 
@@ -178,7 +178,7 @@ genai.configure(
     client_options={"api_endpoint": "http://localhost:4981/gemini"}
 )
 
-model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-advanced")
 response = model.generate_content("Write a poem about coding")
 print(response.text)
 ```
@@ -189,7 +189,7 @@ print(response.text)
 curl -X POST http://localhost:4981/openai/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gemini-pro",
+    "model": "gemini-advanced",
     "messages": [{"role": "user", "content": "What is AI?"}],
     "stream": false
   }'
