@@ -35,27 +35,18 @@ func (h *ClaudeController) SetLogger(log *zap.Logger) {
 // @Success 200 {object} map[string]interface{}
 // @Router /claude/v1/models [get]
 func (h *ClaudeController) HandleModels(c fiber.Ctx) error {
+	models := h.service.ListModels()
+	data := []fiber.Map{}
+	for _, m := range models {
+		data = append(data, fiber.Map{
+			"id":           m.ID,
+			"type":         "model",
+			"created_at":   m.Created,
+			"display_name": m.ID,
+		})
+	}
 	return c.JSON(fiber.Map{
-		"data": []fiber.Map{
-			{
-				"id":           "claude-3-5-sonnet-20240620",
-				"type":         "model",
-				"created_at":   1718841600,
-				"display_name": "Claude 3.5 Sonnet",
-			},
-			{
-				"id":           "claude-3-opus-20240229",
-				"type":         "model",
-				"created_at":   1709164800,
-				"display_name": "Claude 3 Opus",
-			},
-			{
-				"id":           "claude-3-7-sonnet-20250219",
-				"type":         "model",
-				"created_at":   1739923200,
-				"display_name": "Claude 3.7 Sonnet",
-			},
-		},
+		"data": data,
 	})
 }
 

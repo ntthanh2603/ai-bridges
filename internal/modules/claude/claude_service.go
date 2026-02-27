@@ -25,6 +25,10 @@ func NewClaudeService(client *providers.Client, log *zap.Logger) *ClaudeService 
 	}
 }
 
+func (s *ClaudeService) ListModels() []providers.ModelInfo {
+	return s.client.ListModels()
+}
+
 func (s *ClaudeService) GenerateMessage(ctx context.Context, req dto.MessageRequest) (*dto.MessageResponse, error) {
 	// Logic: Validate
 	if err := common.ValidateMessages(req.Messages); err != nil {

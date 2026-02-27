@@ -35,6 +35,7 @@ type Client struct {
 	refreshInterval time.Duration
 	stopRefresh     chan struct{}
 	maxRetries      int
+	cachedModels    []ModelInfo
 }
 
 type CookieStore struct {
@@ -280,7 +281,53 @@ func (c *Client) refreshSessionToken() error {
 	c.at = matches[1]
 	c.healthy = true
 	c.mu.Unlock()
+
+	// Update dynamic models from the same initialization body
+	c.refreshModels(body)
+
 	return nil
+}
+
+func (c *Client) refreshModels(body string) {
+	var newModels []ModelInfo
+	now := time.Now().Unix()
+
+	// Improved regex to find gemini model IDs even when escaped in JSON
+	// Matches IDs like gemini-2.0-flash, gemini-1.5-pro, etc.
+	// We look for gemini- followed by alphanumeric characters, dots, or dashes.
+	modelIDRegex := regexp.MustCompile(`gemini-[a-zA-Z0-9.-]+`)
+	matches := modelIDRegex.FindAllString(body, -1)
+	
+	uniqueIDs := make(map[string]bool)
+	for _, id := range matches {
+		// Clean up potential trailing backslashes or quotes if they were caught
+		id = strings.Trim(id, `\"' `)
+		
+		// Basic validation: ensure it doesn't look like a generic string or partial ID
+		if !uniqueIDs[id] && len(id) > 10 {
+			uniqueIDs[id] = true
+			newModels = append(newModels, ModelInfo{
+				ID:       id,
+				Created:  now,
+				OwnedBy:  "google",
+				Provider: "gemini",
+			})
+		}
+	}
+
+	c.mu.Lock()
+	c.cachedModels = newModels
+	c.mu.Unlock()
+	
+	if len(newModels) == 0 {
+		c.log.Warn("⚠️ No models found in Gemini Web response. Please check your cookies or connection.")
+	} else {
+		ids := make([]string, 0, len(newModels))
+		for _, m := range newModels {
+			ids = append(ids, m.ID)
+		}
+		c.log.Info("🔄 Refreshed available models from Gemini Web", zap.Int("count", len(newModels)), zap.Strings("models", ids))
+	}
 }
 
 // startAutoRefresh periodically refreshes the PSIDTS cookie
@@ -415,27 +462,45 @@ func (c *Client) GetCookies() *CookieStore {
 }
 
 func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...GenerateOption) (*Response, error) {
-	config := &GenerateConfig{
-		Model: "gemini-pro", // default
-	}
+	config := &GenerateConfig{}
 	for _, opt := range options {
 		opt(config)
 	}
 
-	// Read session token safely — short critical section, no lock held during HTTP call
+	// Default to first available model if not set or "gemini-pro"
 	c.mu.RLock()
+	if config.Model == "" || config.Model == "gemini-pro" {
+		if len(c.cachedModels) > 0 {
+			config.Model = c.cachedModels[0].ID
+		}
+	}
+	
+	// Strictly enforce that we only use models found/confirmed from the web
+	found := false
+	for _, m := range c.cachedModels {
+		if m.ID == config.Model {
+			found = true
+			break
+		}
+	}
 	at := c.at
 	c.mu.RUnlock()
+
+	if !found && config.Model != "" {
+		return nil, fmt.Errorf("model '%s' is not supported or not available. Available models: %v", config.Model, c.ListModelsIDs())
+	}
 
 	if at == "" {
 		return nil, errors.New("client not initialized")
 	}
 
 	// Build request payload
+	// The structure confirmed to work for model selection is [ [prompt], nil, nil, model ]
 	inner := []interface{}{
 		[]interface{}{prompt},
 		nil,
 		nil,
+		config.Model,
 	}
 
 	innerJSON, _ := json.Marshal(inner)
@@ -538,12 +603,18 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 }
 
 func (c *Client) StartChat(options ...ChatOption) ChatSession {
-	config := &ChatConfig{
-		Model: "gemini-pro",
-	}
+	config := &ChatConfig{}
 	for _, opt := range options {
 		opt(config)
 	}
+
+	c.mu.RLock()
+	if config.Model == "" || config.Model == "gemini-pro" {
+		if len(c.cachedModels) > 0 {
+			config.Model = c.cachedModels[0].ID
+		}
+	}
+	c.mu.RUnlock()
 
 	return &GeminiChatSession{
 		client:   c,
@@ -572,14 +643,25 @@ func (c *Client) IsHealthy() bool {
 }
 
 func (c *Client) ListModels() []ModelInfo {
-	var models []ModelInfo
-	// Assuming SupportedModels is defined in this package now
-	for _, m := range SupportedModels {
-		if m.Provider == "gemini" {
-			models = append(models, m)
-		}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	if len(c.cachedModels) == 0 {
+		return []ModelInfo{}
 	}
-	return models
+	
+	return c.cachedModels
+}
+
+func (c *Client) ListModelsIDs() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	ids := make([]string, 0, len(c.cachedModels))
+	for _, m := range c.cachedModels {
+		ids = append(ids, m.ID)
+	}
+	return ids
 }
 
 // parseResponse parses Gemini's response format

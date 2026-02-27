@@ -6,7 +6,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gemini-advanced",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Hello!"}
