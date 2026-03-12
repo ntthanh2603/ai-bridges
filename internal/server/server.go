@@ -19,7 +19,8 @@ import (
 // New creates a new Fiber app instance
 func NewGeminiWebToAPI(log *zap.Logger, cfg *configs.Config) *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName: "Gemini Web To API",
+		AppName:   "Gemini Web To API",
+		BodyLimit: 20 * 1024 * 1024, // 20 MB
 	})
 
 	app.Use(cors.New(cors.Config{

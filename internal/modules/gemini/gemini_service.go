@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -28,24 +29,40 @@ func (s *GeminiService) ListModels() []providers.ModelInfo {
 }
 
 func (s *GeminiService) GenerateContent(ctx context.Context, modelID string, req dto.GeminiGenerateRequest) (*dto.GeminiGenerateResponse, error) {
-	// Logic: Extract prompt
+	// Logic: Extract prompt and files
 	var promptBuilder strings.Builder
+	var files []providers.FileData
+
 	for _, content := range req.Contents {
 		for _, part := range content.Parts {
 			if part.Text != "" {
 				promptBuilder.WriteString(part.Text)
 				promptBuilder.WriteString("\n")
 			}
+			if part.InlineData != nil {
+				dataBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if err != nil {
+					s.log.Warn("Failed to decode base64 inline data", zap.Error(err))
+					continue
+				}
+				files = append(files, providers.FileData{
+					MimeType: part.InlineData.MimeType,
+					Data:     dataBytes,
+				})
+			}
 		}
 	}
 
 	prompt := strings.TrimSpace(promptBuilder.String())
-	if prompt == "" {
+	if prompt == "" && len(files) == 0 {
 		return nil, fmt.Errorf("empty content")
 	}
 
 	// Logic: Call Provider
 	opts := []providers.GenerateOption{providers.WithModel(modelID)}
+	if len(files) > 0 {
+		opts = append(opts, providers.WithFiles(files))
+	}
 	response, err := s.client.GenerateContent(ctx, prompt, opts...)
 	if err != nil {
 		return nil, err

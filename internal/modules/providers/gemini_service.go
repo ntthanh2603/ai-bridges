@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -494,10 +495,38 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		return nil, errors.New("client not initialized")
 	}
 
+	var reqFileData interface{} = nil
+	var fileDataArr []interface{}
+	
+	if len(config.Files) > 0 {
+		for _, file := range config.Files {
+			filename := file.FileName
+			if filename == "" {
+				filename = fmt.Sprintf("input_%d.jpg", time.Now().UnixNano())
+			}
+			
+			url, err := c.UploadFile(ctx, file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to upload file %s: %w", filename, err)
+			}
+			
+			fileDataArr = append(fileDataArr, []interface{}{
+				[]interface{}{url}, filename,
+			})
+		}
+		reqFileData = fileDataArr
+	}
+
+	var messageContent []interface{}
+	if reqFileData != nil {
+		messageContent = []interface{}{prompt, 0, nil, reqFileData, nil, nil, 0}
+	} else {
+		messageContent = []interface{}{prompt}
+	}
+
 	// Build request payload
-	// The structure confirmed to work for model selection is [ [prompt], nil, nil, model ]
 	inner := []interface{}{
-		[]interface{}{prompt},
+		messageContent,
 		nil,
 		nil,
 		config.Model,
@@ -506,6 +535,7 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	innerJSON, _ := json.Marshal(inner)
 	outer := []interface{}{nil, string(innerJSON)}
 	outerJSON, _ := json.Marshal(outer)
+
 
 	formData := map[string]string{
 		"at":    at,
@@ -840,12 +870,41 @@ func (c *Client) ClearCookieCache() error {
 }
 
 const (
-EndpointGoogle        = "https://www.google.com"
-EndpointInit          = "https://gemini.google.com/app"
-EndpointGenerate      = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
-EndpointRotateCookies = "https://accounts.google.com/RotateCookies"
-EndpointBatchExec     = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
+	EndpointGoogle        = "https://www.google.com"
+	EndpointInit          = "https://gemini.google.com/app"
+	EndpointGenerate      = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
+	EndpointRotateCookies = "https://accounts.google.com/RotateCookies"
+	EndpointBatchExec     = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
+	EndpointUpload        = "https://content-push.googleapis.com/upload"
 )
+
+// UploadFile uploads a file to Google content-push and returns its identifier
+func (c *Client) UploadFile(ctx context.Context, file FileData) (string, error) {
+	filename := file.FileName
+	if filename == "" {
+		filename = fmt.Sprintf("input_%d.jpg", time.Now().UnixNano())
+	}
+
+	headers := map[string]string{
+		"Push-ID": "feeds/mcudyrk2a4khkz",
+	}
+
+	resp, err := c.httpClient.R().
+		SetContext(ctx).
+		SetHeaders(headers).
+		SetFileReader("file", filename, bytes.NewReader(file.Data)).
+		Post(EndpointUpload)
+
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("upload failed with status: %d", resp.StatusCode)
+	}
+
+	return resp.String(), nil
+}
 
 var DefaultHeaders = map[string]string{
 "Content-Type":  "application/x-www-form-urlencoded;charset=utf-8",

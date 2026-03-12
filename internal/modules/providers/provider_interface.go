@@ -86,10 +86,17 @@ type SessionMetadata struct {
 // GenerateOption configures generation behavior
 type GenerateOption func(*GenerateConfig)
 
+// FileData represents a file to attach to the prompt
+type FileData struct {
+	MimeType string
+	Data     []byte
+	FileName string
+}
+
 // GenerateConfig holds generation configuration
 type GenerateConfig struct {
 	Model       string
-	Files       []string
+	Files       []FileData
 	Temperature float64
 	MaxTokens   int
 }
@@ -111,7 +118,7 @@ func WithModel(model string) GenerateOption {
 }
 
 // WithFiles adds files to the request
-func WithFiles(files []string) GenerateOption {
+func WithFiles(files []FileData) GenerateOption {
 	return func(c *GenerateConfig) {
 		c.Files = files
 	}
