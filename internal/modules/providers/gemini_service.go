@@ -500,9 +500,10 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	
 	if len(config.Files) > 0 {
 		for _, file := range config.Files {
-			filename := file.FileName
+            filename := file.FileName
 			if filename == "" {
-				filename = fmt.Sprintf("input_%d.jpg", time.Now().UnixNano())
+				filename = fmt.Sprintf("input_%d", time.Now().UnixNano())
+				file.FileName = filename
 			}
 			
 			url, err := c.UploadFile(ctx, file)
