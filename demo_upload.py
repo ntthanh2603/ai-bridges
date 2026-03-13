@@ -53,7 +53,7 @@ def main():
                     {"text": prompt_text},
                     {
                         "inlineData": {
-                            "mimeType": "image/png", # Dù là JPG hay PNG, hệ thống Go đang tự xử lý.
+                            "mimeType": "image/jpeg", # Ảnh luôn được chuyển đổi sang định dạng JPEG để nén.
                             "data": base64_image
                         }
                     }
