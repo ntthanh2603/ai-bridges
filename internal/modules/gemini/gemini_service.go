@@ -2,9 +2,12 @@ package gemini
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"gemini-web-to-api/internal/commons/utils"
 	"gemini-web-to-api/internal/modules/gemini/dto"
 	"gemini-web-to-api/internal/modules/providers"
 
@@ -44,6 +47,11 @@ func (s *GeminiService) GenerateContent(ctx context.Context, modelID string, req
 		return nil, fmt.Errorf("empty content")
 	}
 
+	hasTools := len(req.Tools) > 0
+	if hasTools {
+		prompt = s.buildToolBridgePrompt(req, prompt)
+	}
+
 	// Logic: Call Provider
 	opts := []providers.GenerateOption{providers.WithModel(modelID)}
 	response, err := s.client.GenerateContent(ctx, prompt, opts...)
@@ -52,21 +60,185 @@ func (s *GeminiService) GenerateContent(ctx context.Context, modelID string, req
 	}
 
 	// Logic: Construct Response
+	resParts := []dto.Part{}
+	finishReason := "STOP"
+
+	if hasTools {
+		functionCalls, content := s.parseToolBridgeOutput(req, response.Text)
+		if len(functionCalls) > 0 {
+			for _, fc := range functionCalls {
+				resParts = append(resParts, dto.Part{FunctionCall: &fc})
+			}
+			finishReason = "FUNCTION_CALL"
+		} else {
+			resParts = append(resParts, dto.Part{Text: content})
+		}
+	} else {
+		resParts = append(resParts, dto.Part{Text: response.Text})
+	}
+
 	return &dto.GeminiGenerateResponse{
 		Candidates: []dto.Candidate{
 			{
 				Index: 0,
 				Content: dto.Content{
 					Role:  "model",
-					Parts: []dto.Part{{Text: response.Text}},
+					Parts: resParts,
 				},
-				FinishReason: "STOP",
+				FinishReason: finishReason,
 			},
 		},
 		UsageMetadata: &dto.UsageMetadata{
 			TotalTokenCount: 0,
 		},
 	}, nil
+}
+
+// GenerateContentStream handles Gemini's streaming simulation logic in the service layer.
+func (s *GeminiService) GenerateContentStream(ctx context.Context, modelID string, req dto.GeminiGenerateRequest, onEvent func(dto.GeminiGenerateResponse) bool) error {
+	resp, err := s.GenerateContent(ctx, modelID, req)
+	if err != nil {
+		return err
+	}
+
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return nil
+	}
+
+	candidate := resp.Candidates[0]
+	hasFunctionCall := false
+	for _, part := range candidate.Content.Parts {
+		if part.FunctionCall != nil {
+			hasFunctionCall = true
+			break
+		}
+	}
+
+	if hasFunctionCall {
+		// Send as one chunk if it's a function call
+		onEvent(*resp)
+		return nil
+	}
+
+	// Simulated text streaming
+	var fullText strings.Builder
+	for _, part := range candidate.Content.Parts {
+		fullText.WriteString(part.Text)
+	}
+
+	chunks := utils.SplitResponseIntoChunks(fullText.String(), 30)
+	for _, content := range chunks {
+		if !onEvent(dto.GeminiGenerateResponse{
+			Candidates: []dto.Candidate{
+				{
+					Index: 0,
+					Content: dto.Content{
+						Role:  "model",
+						Parts: []dto.Part{{Text: content}},
+					},
+				},
+			},
+		}) {
+			return nil
+		}
+		if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
+			return nil
+		}
+	}
+
+	// Final STOP chunk
+	onEvent(dto.GeminiGenerateResponse{
+		Candidates: []dto.Candidate{{Index: 0, FinishReason: "STOP"}},
+	})
+
+	return nil
+}
+
+type toolBridgePayload struct {
+	ToolCalls []toolBridgeCall `json:"tool_calls"`
+	Content   string           `json:"content"`
+}
+
+type toolBridgeCall struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+func (s *GeminiService) buildToolBridgePrompt(req dto.GeminiGenerateRequest, basePrompt string) string {
+	var b strings.Builder
+	b.WriteString("You are a Gemini assistant running behind a bridge that supports function calling.\n")
+	b.WriteString("You MUST respond with JSON only. Do not output markdown code fences.\n")
+	b.WriteString("Output schema:\n")
+	b.WriteString("{\"status\":\"call\",\"tool_calls\":[{\"name\":\"<tool_name>\",\"arguments\":{}}]} OR {\"status\":\"text\",\"content\":\"<assistant_text>\"}\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Use only tool names listed below.\n")
+	b.WriteString("- arguments must be valid JSON object.\n")
+
+	b.WriteString("Available tools:\n")
+	for _, tool := range req.Tools {
+		for _, fn := range tool.FunctionDeclarations {
+			b.WriteString("- name: ")
+			b.WriteString(fn.Name)
+			if fn.Description != "" {
+				b.WriteString(" | description: ")
+				b.WriteString(fn.Description)
+			}
+			if len(fn.Parameters) > 0 {
+				b.WriteString(" | parameters: ")
+				b.Write(fn.Parameters)
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\nConversation:\n")
+	b.WriteString(basePrompt)
+	return b.String()
+}
+
+func (s *GeminiService) parseToolBridgeOutput(req dto.GeminiGenerateRequest, text string) ([]dto.FunctionCall, string) {
+	cleaned := strings.TrimSpace(s.stripCodeFence(text))
+	if cleaned == "" {
+		return nil, ""
+	}
+
+	var payload struct {
+		Status    string           `json:"status"`
+		ToolCalls []toolBridgeCall `json:"tool_calls"`
+		Content   string           `json:"content"`
+	}
+
+	if err := json.Unmarshal([]byte(cleaned), &payload); err != nil {
+		return nil, text
+	}
+
+	if payload.Status == "call" && len(payload.ToolCalls) > 0 {
+		calls := make([]dto.FunctionCall, 0, len(payload.ToolCalls))
+		for _, tc := range payload.ToolCalls {
+			calls = append(calls, dto.FunctionCall{
+				Name: tc.Name,
+				Args: tc.Arguments,
+			})
+		}
+		return calls, ""
+	}
+
+	return nil, payload.Content
+}
+
+func (s *GeminiService) stripCodeFence(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "```") {
+		return trimmed
+	}
+	trimmed = strings.TrimPrefix(trimmed, "```")
+	trimmed = strings.TrimPrefix(trimmed, "json")
+	trimmed = strings.TrimPrefix(trimmed, "JSON")
+	trimmed = strings.TrimSpace(trimmed)
+	if idx := strings.LastIndex(trimmed, "```"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+	return trimmed
 }
 
 func (s *GeminiService) IsHealthy() bool {

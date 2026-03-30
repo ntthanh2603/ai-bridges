@@ -11,20 +11,14 @@ definitions:
       index:
         type: integer
     type: object
-  dto.ChatCompletionRequest:
+  dto.ChatCompletionMessage:
     properties:
-      max_tokens:
-        type: integer
-      messages:
-        items:
-          $ref: '#/definitions/models.Message'
-        type: array
-      model:
+      content:
         type: string
-      stream:
-        type: boolean
-      temperature:
-        type: number
+      role:
+        type: string
+    type: object
+  dto.ChatCompletionRequest:
     type: object
   dto.ChatCompletionResponse:
     properties:
@@ -43,6 +37,33 @@ definitions:
       usage:
         $ref: '#/definitions/models.Usage'
     type: object
+  dto.ChatCompletionResponseMessage:
+    properties:
+      content:
+        type: string
+      role:
+        type: string
+      tool_calls:
+        items:
+          $ref: '#/definitions/dto.ChatCompletionToolCall'
+        type: array
+    type: object
+  dto.ChatCompletionToolCall:
+    properties:
+      function:
+        $ref: '#/definitions/dto.ChatCompletionToolCallFunction'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  dto.ChatCompletionToolCallFunction:
+    properties:
+      arguments:
+        type: string
+      name:
+        type: string
+    type: object
   dto.Choice:
     properties:
       finish_reason:
@@ -50,24 +71,27 @@ definitions:
       index:
         type: integer
       message:
-        $ref: '#/definitions/models.Message'
+        $ref: '#/definitions/dto.ChatCompletionResponseMessage'
     type: object
   dto.ConfigContent:
     properties:
+      id:
+        description: for tool_use
+        type: string
+      input:
+        additionalProperties: true
+        description: for tool_use
+        type: object
+      name:
+        description: for tool_use
+        type: string
       text:
         type: string
       type:
-        description: '"text"'
+        description: '"text" or "tool_use"'
         type: string
     type: object
   dto.Content:
-    properties:
-      parts:
-        items:
-          $ref: '#/definitions/dto.Part'
-        type: array
-      role:
-        type: string
     type: object
   dto.DeepResearchRequest:
     properties:
@@ -125,19 +149,6 @@ definitions:
         type: string
     type: object
   dto.GeminiGenerateRequest:
-    properties:
-      contents:
-        items:
-          $ref: '#/definitions/dto.Content'
-        type: array
-      generationConfig:
-        $ref: '#/definitions/dto.GenerationConfig'
-      safety_settings:
-        items:
-          additionalProperties:
-            type: string
-          type: object
-        type: array
     type: object
   dto.GeminiGenerateResponse:
     properties:
@@ -170,17 +181,6 @@ definitions:
           $ref: '#/definitions/dto.GeminiModel'
         type: array
     type: object
-  dto.GenerationConfig:
-    properties:
-      maxOutputTokens:
-        type: integer
-      temperature:
-        type: number
-      topK:
-        type: integer
-      topP:
-        type: number
-    type: object
   dto.InlineData:
     properties:
       data:
@@ -188,88 +188,7 @@ definitions:
       mimeType:
         type: string
     type: object
-  dto.InteractionCreateRequest:
-    properties:
-      agent:
-        description: Agent selects the research mode (e.g. "deep-research-pro-preview-12-2025")
-        type: string
-      background:
-        description: Background if true the task runs asynchronously (always true
-          for this endpoint)
-        type: boolean
-      input:
-        description: Input is the research query / topic
-        type: string
-      language:
-        description: Language for the output report
-        type: string
-      max_sources:
-        description: MaxSources max number of web sources to consult
-        type: integer
-      stream:
-        description: Stream if true the server returns an SSE stream of InteractionResponse
-          events
-        type: boolean
-    type: object
-  dto.InteractionOutput:
-    properties:
-      text:
-        description: Text is the research report text
-        type: string
-    type: object
-  dto.InteractionResponse:
-    properties:
-      completed_at:
-        description: CompletedAt Unix timestamp (0 if not yet completed)
-        type: integer
-      created_at:
-        description: CreatedAt Unix timestamp
-        type: integer
-      duration_ms:
-        description: DurationMs total research duration in milliseconds
-        type: integer
-      error:
-        description: Error message if status is "failed"
-        type: string
-      id:
-        description: ID unique task identifier
-        type: string
-      outputs:
-        description: Outputs list of output items (non-empty when completed)
-        items:
-          $ref: '#/definitions/dto.InteractionOutput'
-        type: array
-      query:
-        description: Query that was researched
-        type: string
-      sources:
-        description: Sources consulted during research
-        items:
-          $ref: '#/definitions/dto.ResearchSource'
-        type: array
-      status:
-        description: 'Status: "in_progress", "completed", "failed"'
-        type: string
-      steps:
-        description: Steps research steps performed
-        items:
-          $ref: '#/definitions/dto.ResearchStep'
-        type: array
-    type: object
   dto.MessageRequest:
-    properties:
-      max_tokens:
-        type: integer
-      messages:
-        items:
-          $ref: '#/definitions/models.Message'
-        type: array
-      model:
-        type: string
-      stream:
-        type: boolean
-      system:
-        type: string
     type: object
   dto.MessageResponse:
     properties:
@@ -291,13 +210,6 @@ definitions:
         type: string
       usage:
         $ref: '#/definitions/models.Usage'
-    type: object
-  dto.Part:
-    properties:
-      inlineData:
-        $ref: '#/definitions/dto.InlineData'
-      text:
-        type: string
     type: object
   dto.ResearchSource:
     properties:
@@ -399,7 +311,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Sends a message to the Claude model
+      description: Sends a message to the Claude model. Supports both standard JSON
+        response and streaming (SSE) response.
       parameters:
       - description: Message Request
         in: body
@@ -409,11 +322,12 @@ paths:
           $ref: '#/definitions/dto.MessageRequest'
       produces:
       - application/json
+      - text/event-stream
       responses:
         "200":
-          description: OK
+          description: SSE stream of dto.StreamEvent JSON objects
           schema:
-            $ref: '#/definitions/dto.MessageResponse'
+            type: string
         "400":
           description: Bad Request
           schema:
@@ -492,9 +406,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Performs deep research on a topic using Gemini, searching the web
-        and synthesizing a comprehensive report. This is a blocking call that returns
-        only when research is complete (may take several minutes).
+      description: Performs deep research on a topic using Gemini.
       parameters:
       - description: Deep Research Request
         in: body
@@ -509,89 +421,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/dto.DeepResearchResponse'
-        "400":
-          description: Bad Request – query is missing
-          schema:
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            type: object
       summary: Deep Research (synchronous)
-      tags:
-      - Gemini
-  /gemini/v1beta/deepresearch/{id}:
-    get:
-      description: Returns the current status and result of a background research
-        task.
-      parameters:
-      - description: Task ID returned by create
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.InteractionResponse'
-        "404":
-          description: Not Found
-          schema:
-            type: object
-      summary: Get Deep Research Interaction status
-      tags:
-      - Gemini
-  /gemini/v1beta/deepresearch/create:
-    post:
-      consumes:
-      - application/json
-      description: Start a deep research task. Set stream=true for realtime SSE progress,
-        or omit for background polling.
-      parameters:
-      - description: Interaction Create Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.InteractionCreateRequest'
-      produces:
-      - application/json
-      responses:
-        "202":
-          description: Accepted
-          schema:
-            $ref: '#/definitions/dto.InteractionResponse'
-      summary: Create Deep Research Interaction
-      tags:
-      - Gemini
-  /gemini/v1beta/deepresearch/stream:
-    post:
-      consumes:
-      - application/json
-      description: Streams deep research progress in real-time using Server-Sent Events
-        (SSE).
-      parameters:
-      - description: Deep Research Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.DeepResearchRequest'
-      produces:
-      - text/event-stream
-      responses:
-        "200":
-          description: SSE stream of DeepResearchStreamEvent JSON objects
-          schema:
-            type: string
-        "400":
-          description: Bad Request – query is missing
-          schema:
-            type: object
-      summary: Deep Research (streaming SSE)
       tags:
       - Gemini
   /gemini/v1beta/models:
@@ -657,7 +487,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: Chunked response
+          description: Chunked JSON response
           schema:
             type: string
       summary: Stream Generate Content (Gemini)
@@ -686,7 +516,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Generates a completion for the chat message
+      description: Generates a completion for the chat message. Supports both standard
+        JSON and streaming (SSE) response.
       parameters:
       - description: Chat Completion Request
         in: body
@@ -696,11 +527,12 @@ paths:
           $ref: '#/definitions/dto.ChatCompletionRequest'
       produces:
       - application/json
+      - text/event-stream
       responses:
         "200":
-          description: OK
+          description: SSE stream of dto.ChatCompletionChunk JSON objects
           schema:
-            $ref: '#/definitions/dto.ChatCompletionResponse'
+            type: string
         "400":
           description: Bad Request
           schema:

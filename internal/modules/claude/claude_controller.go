@@ -1,9 +1,12 @@
 package claude
 
 import (
+	"bufio"
 	"context"
-	"gemini-web-to-api/internal/modules/claude/dto"
 	"time"
+
+	common "gemini-web-to-api/internal/commons/utils"
+	"gemini-web-to-api/internal/modules/claude/dto"
 
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -71,12 +74,14 @@ func (h *ClaudeController) HandleModelByID(c fiber.Ctx) error {
 
 // HandleMessages handles the main chat endpoint
 // @Summary Send Message (Claude)
-// @Description Sends a message to the Claude model
+// @Description Sends a message to the Claude model. Supports both standard JSON response and streaming (SSE) response.
 // @Tags Claude
 // @Accept json
 // @Produce json
+// @Produce text/event-stream
 // @Param request body dto.MessageRequest true "Message Request"
 // @Success 200 {object} dto.MessageResponse
+// @Success 200 {string} string "SSE stream of dto.StreamEvent JSON objects"
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /claude/v1/messages [post]
@@ -89,13 +94,36 @@ func (h *ClaudeController) HandleMessages(c fiber.Ctx) error {
 		})
 	}
 
-	// Add timeout
+	if req.Stream {
+		c.Set("Content-Type", "text/event-stream")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+		c.Set("X-Accel-Buffering", "no")
+
+		c.RequestCtx().SetBodyStreamWriter(func(w *bufio.Writer) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			err := h.service.GenerateMessageStream(ctx, req, func(ev dto.StreamEvent) bool {
+				return common.SendSSEEvent(w, h.log, ev)
+			})
+			if err != nil {
+				h.log.Error("GenerateMessageStream failed", zap.Error(err), zap.String("model", req.Model))
+				errEv := dto.StreamEvent{Type: "error"}
+				_ = common.SendSSEEvent(w, h.log, errEv)
+			}
+		})
+
+		return nil
+	}
+
+	// Non-streaming mode
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	response, err := h.service.GenerateMessage(ctx, req)
 	if err != nil {
-		h.log.Error("GenerateContent failed", zap.Error(err), zap.String("model", req.Model))
+		h.log.Error("GenerateMessage failed", zap.Error(err), zap.String("model", req.Model))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"type":  "error",
 			"error": fiber.Map{"type": "api_error", "message": err.Error()},

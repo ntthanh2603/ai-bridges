@@ -25,11 +25,14 @@ type ModelData struct {
 
 // Delta represents the delta content in a chunk
 type Delta struct {
-	Type    string `json:"type,omitempty"`    // "text_delta"
-	Content string `json:"content,omitempty"` // for OpenAI
-	Text    string `json:"text,omitempty"`    // for Claude
-	Role    string `json:"role,omitempty"`
+	Type        string `json:"type,omitempty"`         // "text_delta", "input_json_delta"
+	Content     string `json:"content,omitempty"`      // for OpenAI
+	Text        string `json:"text,omitempty"`         // for Claude
+	PartialJSON string `json:"partial_json,omitempty"` // for Claude tool use
+	StopReason  string `json:"stop_reason,omitempty"`  // for Claude
+	Role        string `json:"role,omitempty"`
 }
+
 
 // Usage represents token usage (compatible format)
 type Usage struct {

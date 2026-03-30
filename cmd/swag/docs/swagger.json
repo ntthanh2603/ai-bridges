@@ -11,12 +11,13 @@
     "paths": {
         "/claude/v1/messages": {
             "post": {
-                "description": "Sends a message to the Claude model",
+                "description": "Sends a message to the Claude model. Supports both standard JSON response and streaming (SSE) response.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/json"
+                    "application/json",
+                    "text/event-stream"
                 ],
                 "tags": [
                     "Claude"
@@ -35,9 +36,9 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "SSE stream of dto.StreamEvent JSON objects",
                         "schema": {
-                            "$ref": "#/definitions/dto.MessageResponse"
+                            "type": "string"
                         }
                     },
                     "400": {
@@ -151,7 +152,7 @@
         },
         "/gemini/v1beta/deepresearch": {
             "post": {
-                "description": "Performs deep research on a topic using Gemini, searching the web and synthesizing a comprehensive report. This is a blocking call that returns only when research is complete (may take several minutes).",
+                "description": "Performs deep research on a topic using Gemini.",
                 "consumes": [
                     "application/json"
                 ],
@@ -178,127 +179,6 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/dto.DeepResearchResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request – query is missing",
-                        "schema": {
-                            "type": "object"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                }
-            }
-        },
-        "/gemini/v1beta/deepresearch/create": {
-            "post": {
-                "description": "Start a deep research task. Set stream=true for realtime SSE progress, or omit for background polling.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Gemini"
-                ],
-                "summary": "Create Deep Research Interaction",
-                "parameters": [
-                    {
-                        "description": "Interaction Create Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.InteractionCreateRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/dto.InteractionResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/gemini/v1beta/deepresearch/stream": {
-            "post": {
-                "description": "Streams deep research progress in real-time using Server-Sent Events (SSE).",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "text/event-stream"
-                ],
-                "tags": [
-                    "Gemini"
-                ],
-                "summary": "Deep Research (streaming SSE)",
-                "parameters": [
-                    {
-                        "description": "Deep Research Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.DeepResearchRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "SSE stream of DeepResearchStreamEvent JSON objects",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request – query is missing",
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                }
-            }
-        },
-        "/gemini/v1beta/deepresearch/{id}": {
-            "get": {
-                "description": "Returns the current status and result of a background research task.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Gemini"
-                ],
-                "summary": "Get Deep Research Interaction status",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Task ID returned by create",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.InteractionResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object"
                         }
                     }
                 }
@@ -401,7 +281,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Chunked response",
+                        "description": "Chunked JSON response",
                         "schema": {
                             "type": "string"
                         }
@@ -439,12 +319,13 @@
         },
         "/openai/v1/chat/completions": {
             "post": {
-                "description": "Generates a completion for the chat message",
+                "description": "Generates a completion for the chat message. Supports both standard JSON and streaming (SSE) response.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/json"
+                    "application/json",
+                    "text/event-stream"
                 ],
                 "tags": [
                     "OpenAI"
@@ -463,9 +344,9 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "SSE stream of dto.ChatCompletionChunk JSON objects",
                         "schema": {
-                            "$ref": "#/definitions/dto.ChatCompletionResponse"
+                            "type": "string"
                         }
                     },
                     "400": {
@@ -527,28 +408,19 @@
                 }
             }
         },
-        "dto.ChatCompletionRequest": {
+        "dto.ChatCompletionMessage": {
             "type": "object",
             "properties": {
-                "max_tokens": {
-                    "type": "integer"
-                },
-                "messages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Message"
-                    }
-                },
-                "model": {
+                "content": {
                     "type": "string"
                 },
-                "stream": {
-                    "type": "boolean"
-                },
-                "temperature": {
-                    "type": "number"
+                "role": {
+                    "type": "string"
                 }
             }
+        },
+        "dto.ChatCompletionRequest": {
+            "type": "object"
         },
         "dto.ChatCompletionResponse": {
             "type": "object",
@@ -576,6 +448,48 @@
                 }
             }
         },
+        "dto.ChatCompletionResponseMessage": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ChatCompletionToolCall"
+                    }
+                }
+            }
+        },
+        "dto.ChatCompletionToolCall": {
+            "type": "object",
+            "properties": {
+                "function": {
+                    "$ref": "#/definitions/dto.ChatCompletionToolCallFunction"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ChatCompletionToolCallFunction": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.Choice": {
             "type": "object",
             "properties": {
@@ -586,35 +500,37 @@
                     "type": "integer"
                 },
                 "message": {
-                    "$ref": "#/definitions/models.Message"
+                    "$ref": "#/definitions/dto.ChatCompletionResponseMessage"
                 }
             }
         },
         "dto.ConfigContent": {
             "type": "object",
             "properties": {
+                "id": {
+                    "description": "for tool_use",
+                    "type": "string"
+                },
+                "input": {
+                    "description": "for tool_use",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "description": "for tool_use",
+                    "type": "string"
+                },
                 "text": {
                     "type": "string"
                 },
                 "type": {
-                    "description": "\"text\"",
+                    "description": "\"text\" or \"tool_use\"",
                     "type": "string"
                 }
             }
         },
         "dto.Content": {
-            "type": "object",
-            "properties": {
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.Part"
-                    }
-                },
-                "role": {
-                    "type": "string"
-                }
-            }
+            "type": "object"
         },
         "dto.DeepResearchRequest": {
             "type": "object",
@@ -693,27 +609,7 @@
             }
         },
         "dto.GeminiGenerateRequest": {
-            "type": "object",
-            "properties": {
-                "contents": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.Content"
-                    }
-                },
-                "generationConfig": {
-                    "$ref": "#/definitions/dto.GenerationConfig"
-                },
-                "safety_settings": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
+            "type": "object"
         },
         "dto.GeminiGenerateResponse": {
             "type": "object",
@@ -763,23 +659,6 @@
                 }
             }
         },
-        "dto.GenerationConfig": {
-            "type": "object",
-            "properties": {
-                "maxOutputTokens": {
-                    "type": "integer"
-                },
-                "temperature": {
-                    "type": "number"
-                },
-                "topK": {
-                    "type": "integer"
-                },
-                "topP": {
-                    "type": "number"
-                }
-            }
-        },
         "dto.InlineData": {
             "type": "object",
             "properties": {
@@ -791,120 +670,8 @@
                 }
             }
         },
-        "dto.InteractionCreateRequest": {
-            "type": "object",
-            "properties": {
-                "agent": {
-                    "description": "Agent selects the research mode (e.g. \"deep-research-pro-preview-12-2025\")",
-                    "type": "string"
-                },
-                "background": {
-                    "description": "Background if true the task runs asynchronously (always true for this endpoint)",
-                    "type": "boolean"
-                },
-                "input": {
-                    "description": "Input is the research query / topic",
-                    "type": "string"
-                },
-                "language": {
-                    "description": "Language for the output report",
-                    "type": "string"
-                },
-                "max_sources": {
-                    "description": "MaxSources max number of web sources to consult",
-                    "type": "integer"
-                },
-                "stream": {
-                    "description": "Stream if true the server returns an SSE stream of InteractionResponse events",
-                    "type": "boolean"
-                }
-            }
-        },
-        "dto.InteractionOutput": {
-            "type": "object",
-            "properties": {
-                "text": {
-                    "description": "Text is the research report text",
-                    "type": "string"
-                }
-            }
-        },
-        "dto.InteractionResponse": {
-            "type": "object",
-            "properties": {
-                "completed_at": {
-                    "description": "CompletedAt Unix timestamp (0 if not yet completed)",
-                    "type": "integer"
-                },
-                "created_at": {
-                    "description": "CreatedAt Unix timestamp",
-                    "type": "integer"
-                },
-                "duration_ms": {
-                    "description": "DurationMs total research duration in milliseconds",
-                    "type": "integer"
-                },
-                "error": {
-                    "description": "Error message if status is \"failed\"",
-                    "type": "string"
-                },
-                "id": {
-                    "description": "ID unique task identifier",
-                    "type": "string"
-                },
-                "outputs": {
-                    "description": "Outputs list of output items (non-empty when completed)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.InteractionOutput"
-                    }
-                },
-                "query": {
-                    "description": "Query that was researched",
-                    "type": "string"
-                },
-                "sources": {
-                    "description": "Sources consulted during research",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ResearchSource"
-                    }
-                },
-                "status": {
-                    "description": "Status: \"in_progress\", \"completed\", \"failed\"",
-                    "type": "string"
-                },
-                "steps": {
-                    "description": "Steps research steps performed",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.ResearchStep"
-                    }
-                }
-            }
-        },
         "dto.MessageRequest": {
-            "type": "object",
-            "properties": {
-                "max_tokens": {
-                    "type": "integer"
-                },
-                "messages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Message"
-                    }
-                },
-                "model": {
-                    "type": "string"
-                },
-                "stream": {
-                    "type": "boolean"
-                },
-                "system": {
-                    "type": "string"
-                }
-            }
+            "type": "object"
         },
         "dto.MessageResponse": {
             "type": "object",
@@ -934,17 +701,6 @@
                 },
                 "usage": {
                     "$ref": "#/definitions/models.Usage"
-                }
-            }
-        },
-        "dto.Part": {
-            "type": "object",
-            "properties": {
-                "inlineData": {
-                    "$ref": "#/definitions/dto.InlineData"
-                },
-                "text": {
-                    "type": "string"
                 }
             }
         },

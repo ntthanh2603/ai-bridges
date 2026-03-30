@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"time"
@@ -8,7 +9,6 @@ import (
 	models "gemini-web-to-api/internal/commons/models"
 	utils "gemini-web-to-api/internal/commons/utils"
 	"gemini-web-to-api/internal/modules/openai/dto"
-	"gemini-web-to-api/internal/modules/providers"
 
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -66,12 +66,14 @@ func (h *OpenAIController) HandleModels(c fiber.Ctx) error {
 
 // HandleChatCompletions accepts requests in OpenAI format
 // @Summary Chat Completions (OpenAI)
-// @Description Generates a completion for the chat message
+// @Description Generates a completion for the chat message. Supports both standard JSON and streaming (SSE) response.
 // @Tags OpenAI
 // @Accept json
 // @Produce json
+// @Produce text/event-stream
 // @Param request body dto.ChatCompletionRequest true "Chat Completion Request"
 // @Success 200 {object} dto.ChatCompletionResponse
+// @Success 200 {string} string "SSE stream of dto.ChatCompletionChunk JSON objects"
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /openai/v1/chat/completions [post]
@@ -81,41 +83,40 @@ func (h *OpenAIController) HandleChatCompletions(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(utils.ErrorToResponse(fmt.Errorf("invalid request body: %w", err), "invalid_request_error"))
 	}
 
-	// Add timeout
+	if req.Stream {
+		c.Set("Content-Type", "text/event-stream")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+		c.Set("X-Accel-Buffering", "no")
+
+		c.RequestCtx().SetBodyStreamWriter(func(w *bufio.Writer) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			err := h.service.CreateChatCompletionStream(ctx, req, func(chunk dto.ChatCompletionChunk) bool {
+				return utils.SendSSEEvent(w, h.log, chunk)
+			})
+			if err != nil {
+				h.log.Error("CreateChatCompletionStream failed", zap.Error(err), zap.String("model", req.Model))
+				// Simple SSE done on error
+				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+			}
+			_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+		})
+
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	response, err := h.service.CreateChatCompletion(ctx, req)
 	if err != nil {
-		h.log.Error("GenerateContent failed", zap.Error(err), zap.String("model", req.Model))
+		h.log.Error("CreateChatCompletion failed", zap.Error(err), zap.String("model", req.Model))
 		return c.Status(fiber.StatusInternalServerError).JSON(utils.ErrorToResponse(err, "api_error"))
 	}
 
 	return c.JSON(response)
-}
-
-func (h *OpenAIController) convertToOpenAIFormat(response *providers.Response, model string) dto.ChatCompletionResponse {
-	return dto.ChatCompletionResponse{
-		ID:      fmt.Sprintf("chatcmpl-%d", time.Now().Unix()),
-		Object:  "chat.completion",
-		Created: time.Now().Unix(),
-		Model:   model,
-		Choices: []dto.Choice{
-			{
-				Index: 0,
-				Message: models.Message{
-					Role:    "assistant",
-					Content: response.Text,
-				},
-				FinishReason: "stop",
-			},
-		},
-		Usage: models.Usage{
-			PromptTokens:     0,
-			CompletionTokens: 0,
-			TotalTokens:      0,
-		},
-	}
 }
 
 // Register registers the OpenAI routes onto the provided group

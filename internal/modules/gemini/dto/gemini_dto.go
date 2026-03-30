@@ -1,5 +1,7 @@
 package dto
 
+import "encoding/json"
+
 // GeminiModelsResponse represents the response from /v1beta/models
 type GeminiModelsResponse struct {
 	Models []GeminiModel `json:"models"`
@@ -17,6 +19,8 @@ type GeminiModel struct {
 // GeminiGenerateRequest represents a Gemini generate request
 type GeminiGenerateRequest struct {
 	Contents         []Content           `json:"contents"`
+	Tools            []Tool              `json:"tools,omitempty"`
+	ToolConfig       *ToolConfig         `json:"tool_config,omitempty"`
 	GenerationConfig *GenerationConfig   `json:"generationConfig,omitempty"`
 	Safety           []map[string]string `json:"safety_settings,omitempty"`
 }
@@ -29,8 +33,45 @@ type Content struct {
 
 // Part represents a part of content
 type Part struct {
-	Text       string      `json:"text,omitempty"`
-	InlineData *InlineData `json:"inlineData,omitempty"`
+	Text             string            `json:"text,omitempty"`
+	InlineData       *InlineData       `json:"inline_data,omitempty"`
+	FunctionCall     *FunctionCall     `json:"function_call,omitempty"`
+	FunctionResponse *FunctionResponse `json:"function_response,omitempty"`
+}
+
+// FunctionCall represents a model's request to call a tool
+type FunctionCall struct {
+	Name string          `json:"name"`
+	Args json.RawMessage `json:"args"`
+}
+
+// FunctionResponse represents the result of a tool call
+type FunctionResponse struct {
+	Name     string          `json:"name"`
+	Response json.RawMessage `json:"response"`
+}
+
+// Tool represents a tool available to the model
+type Tool struct {
+	FunctionDeclarations []FunctionDeclaration `json:"function_declarations,omitempty"`
+}
+
+// FunctionDeclaration represents a function schema
+type FunctionDeclaration struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
+}
+
+// ToolConfig represents configuration for tool use
+type ToolConfig struct {
+	FunctionCallingConfig *FunctionCallingConfig `json:"function_calling_config,omitempty"`
+}
+
+// FunctionCallingConfig represents configuration for function calling
+type FunctionCallingConfig struct {
+	Mode                 string   `json:"mode,omitempty"` // "AUTO", "ANY", "NONE"
+	AllowedFunctionNames []string `json:"allowed_function_names,omitempty"`
 }
 
 // InlineData represents inline data (e.g., images)
@@ -49,16 +90,16 @@ type GenerationConfig struct {
 
 // GeminiGenerateResponse represents a Gemini generate response
 type GeminiGenerateResponse struct {
-	Candidates   []Candidate    `json:"candidates"`
+	Candidates    []Candidate    `json:"candidates"`
 	UsageMetadata *UsageMetadata `json:"usageMetadata,omitempty"`
 }
 
 // Candidate represents a candidate response
 type Candidate struct {
-	Index        int       `json:"index"`
-	Content      Content   `json:"content"`
-	FinishReason string    `json:"finishReason,omitempty"`
-	FinishMessage string   `json:"finishMessage,omitempty"`
+	Index         int       `json:"index"`
+	Content       Content   `json:"content"`
+	FinishReason  string    `json:"finishReason,omitempty"`
+	FinishMessage string    `json:"finishMessage,omitempty"`
 }
 
 // UsageMetadata represents usage metadata
