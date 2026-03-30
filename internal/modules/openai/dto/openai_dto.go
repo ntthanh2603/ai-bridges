@@ -70,7 +70,7 @@ func (m ChatCompletionMessage) ToModelMessage() models.Message {
 type ToolFunctionDefinition struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	Parameters  json.RawMessage `json:"parameters,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty" swagignore:"true"` // @SchemaType object
 }
 
 // ToolDefinition represents OpenAI tool definition
@@ -95,7 +95,7 @@ type ChatCompletionRequest struct {
 	Model         string                  `json:"model"`
 	Messages      []ChatCompletionMessage `json:"messages"`
 	Tools         []ToolDefinition        `json:"tools,omitempty"`
-	ToolChoiceRaw json.RawMessage         `json:"tool_choice,omitempty"`
+	ToolChoiceRaw json.RawMessage         `json:"tool_choice,omitempty" swagignore:"true"` // @SchemaType object
 	Stream        bool                    `json:"stream,omitempty"`
 	Temperature   float32                 `json:"temperature,omitempty"`
 	MaxTokens     int                     `json:"max_tokens,omitempty"`

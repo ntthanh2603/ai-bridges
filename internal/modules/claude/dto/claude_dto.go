@@ -20,7 +20,7 @@ type MessageRequest struct {
 type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	InputSchema json.RawMessage `json:"input_schema" swagignore:"true"` // @SchemaType object
 }
 
 // ToolChoice represents how the model should use tools
@@ -58,4 +58,10 @@ type StreamEvent struct {
 	DeltaField   *models.Delta    `json:"delta,omitempty"`         // present in content_block_delta
 	StopReason   string           `json:"stop_reason,omitempty"`   // present in message_stop
 	UsageField   *models.Usage    `json:"usage,omitempty"`         // present in message_delta (optional?) but essential in message_stop sometimes
+	Error        *Error           `json:"error,omitempty"`         // present in error event
+}
+
+type Error struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
 }

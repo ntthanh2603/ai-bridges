@@ -159,3 +159,19 @@ func ErrorToResponse(err error, errorType string) models.ErrorResponse {
 		},
 	}
 }
+
+// StripCodeFence removes markdown code fences from a string, supporting json and JSON labels.
+func StripCodeFence(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "```") {
+		return trimmed
+	}
+	trimmed = strings.TrimPrefix(trimmed, "```")
+	trimmed = strings.TrimPrefix(trimmed, "json")
+	trimmed = strings.TrimPrefix(trimmed, "JSON")
+	trimmed = strings.TrimSpace(trimmed)
+	if idx := strings.LastIndex(trimmed, "```"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+	return trimmed
+}

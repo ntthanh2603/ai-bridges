@@ -250,7 +250,7 @@ func (s *OpenAIService) buildToolBridgePrompt(req dto.ChatCompletionRequest, bas
 }
 
 func (s *OpenAIService) parseToolBridgeOutput(req dto.ChatCompletionRequest, text string) ([]dto.ChatCompletionToolCall, string) {
-	cleaned := strings.TrimSpace(stripCodeFence(text))
+	cleaned := utils.StripCodeFence(text)
 	if cleaned == "" {
 		return nil, ""
 	}
@@ -338,20 +338,6 @@ func (s *OpenAIService) buildFallbackToolCalls(req dto.ChatCompletionRequest) []
 	return nil
 }
 
-func stripCodeFence(text string) string {
-	trimmed := strings.TrimSpace(text)
-	if !strings.HasPrefix(trimmed, "```") {
-		return trimmed
-	}
-	trimmed = strings.TrimPrefix(trimmed, "```")
-	trimmed = strings.TrimPrefix(trimmed, "json")
-	trimmed = strings.TrimPrefix(trimmed, "JSON")
-	trimmed = strings.TrimSpace(trimmed)
-	if idx := strings.LastIndex(trimmed, "```"); idx >= 0 {
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-	return trimmed
-}
 
 func decodeToolBridgePayload(text string) (toolBridgePayload, bool) {
 	var payload toolBridgePayload

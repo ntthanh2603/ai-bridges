@@ -109,7 +109,13 @@ func (h *ClaudeController) HandleMessages(c fiber.Ctx) error {
 			})
 			if err != nil {
 				h.log.Error("GenerateMessageStream failed", zap.Error(err), zap.String("model", req.Model))
-				errEv := dto.StreamEvent{Type: "error"}
+				errEv := dto.StreamEvent{
+					Type: "error",
+					Error: &dto.Error{
+						Type:    "api_error",
+						Message: err.Error(),
+					},
+				}
 				_ = common.SendSSEEvent(w, h.log, errEv)
 			}
 		})

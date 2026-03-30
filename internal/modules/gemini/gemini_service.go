@@ -197,7 +197,7 @@ func (s *GeminiService) buildToolBridgePrompt(req dto.GeminiGenerateRequest, bas
 }
 
 func (s *GeminiService) parseToolBridgeOutput(req dto.GeminiGenerateRequest, text string) ([]dto.FunctionCall, string) {
-	cleaned := strings.TrimSpace(s.stripCodeFence(text))
+	cleaned := utils.StripCodeFence(text)
 	if cleaned == "" {
 		return nil, ""
 	}
@@ -224,21 +224,6 @@ func (s *GeminiService) parseToolBridgeOutput(req dto.GeminiGenerateRequest, tex
 	}
 
 	return nil, payload.Content
-}
-
-func (s *GeminiService) stripCodeFence(text string) string {
-	trimmed := strings.TrimSpace(text)
-	if !strings.HasPrefix(trimmed, "```") {
-		return trimmed
-	}
-	trimmed = strings.TrimPrefix(trimmed, "```")
-	trimmed = strings.TrimPrefix(trimmed, "json")
-	trimmed = strings.TrimPrefix(trimmed, "JSON")
-	trimmed = strings.TrimSpace(trimmed)
-	if idx := strings.LastIndex(trimmed, "```"); idx >= 0 {
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-	return trimmed
 }
 
 func (s *GeminiService) IsHealthy() bool {

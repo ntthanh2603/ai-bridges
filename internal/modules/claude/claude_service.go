@@ -144,7 +144,11 @@ func (s *ClaudeService) GenerateMessageStream(ctx context.Context, req dto.Messa
 				}
 			}
 		} else if content.Type == "tool_use" {
-			inputJSON, _ := json.Marshal(content.Input)
+			inputJSON, err := json.Marshal(content.Input)
+			if err != nil {
+				s.log.Error("Failed to marshal tool input", zap.Error(err))
+				return fmt.Errorf("failed to marshal tool input: %w", err)
+			}
 			if !onEvent(dto.StreamEvent{
 				Type:  "content_block_delta",
 				Index: i,
@@ -212,7 +216,7 @@ func (s *ClaudeService) buildToolBridgePrompt(req dto.MessageRequest, basePrompt
 }
 
 func (s *ClaudeService) parseToolBridgeOutput(req dto.MessageRequest, text string) ([]dto.ConfigContent, string) {
-	cleaned := strings.TrimSpace(s.stripCodeFence(text))
+	cleaned := common.StripCodeFence(text)
 	if cleaned == "" {
 		return nil, ""
 	}
@@ -249,19 +253,4 @@ func (s *ClaudeService) parseToolBridgeOutput(req dto.MessageRequest, text strin
 	}
 
 	return nil, payload.Content
-}
-
-func (s *ClaudeService) stripCodeFence(text string) string {
-	trimmed := strings.TrimSpace(text)
-	if !strings.HasPrefix(trimmed, "```") {
-		return trimmed
-	}
-	trimmed = strings.TrimPrefix(trimmed, "```")
-	trimmed = strings.TrimPrefix(trimmed, "json")
-	trimmed = strings.TrimPrefix(trimmed, "JSON")
-	trimmed = strings.TrimSpace(trimmed)
-	if idx := strings.LastIndex(trimmed, "```"); idx >= 0 {
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-	return trimmed
 }

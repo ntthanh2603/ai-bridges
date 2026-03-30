@@ -98,8 +98,8 @@ func (h *OpenAIController) HandleChatCompletions(c fiber.Ctx) error {
 			})
 			if err != nil {
 				h.log.Error("CreateChatCompletionStream failed", zap.Error(err), zap.String("model", req.Model))
-				// Simple SSE done on error
-				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+				// Optionally send actual OpenAI error JSON here, but for now just close.
+				return
 			}
 			_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
 		})

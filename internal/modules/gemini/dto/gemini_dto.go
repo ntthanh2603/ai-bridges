@@ -42,13 +42,13 @@ type Part struct {
 // FunctionCall represents a model's request to call a tool
 type FunctionCall struct {
 	Name string          `json:"name"`
-	Args json.RawMessage `json:"args"`
+	Args json.RawMessage `json:"args" swagignore:"true"` // @SchemaType object
 }
 
 // FunctionResponse represents the result of a tool call
 type FunctionResponse struct {
 	Name     string          `json:"name"`
-	Response json.RawMessage `json:"response"`
+	Response json.RawMessage `json:"response" swagignore:"true"` // @SchemaType object
 }
 
 // Tool represents a tool available to the model
@@ -60,7 +60,7 @@ type Tool struct {
 type FunctionDeclaration struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	Parameters  json.RawMessage `json:"parameters,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty" swagignore:"true"` // @SchemaType object
 }
 
 // ToolConfig represents configuration for tool use
