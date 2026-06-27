@@ -235,9 +235,10 @@ type ChatCompletionToolCall struct {
 
 // ChatCompletionResponseMessage represents assistant message payload
 type ChatCompletionResponseMessage struct {
-	Role      string                   `json:"role"`
-	Content   string                   `json:"content,omitempty"`
-	ToolCalls []ChatCompletionToolCall `json:"tool_calls,omitempty"`
+	Role             string                   `json:"role"`
+	Content          string                   `json:"content,omitempty"`
+	ReasoningContent string                   `json:"reasoning_content,omitempty"`
+	ToolCalls        []ChatCompletionToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatCompletionResponse represents OpenAI chat completion response
@@ -273,9 +274,10 @@ type ChatCompletionChunkDeltaToolCall struct {
 
 // ChatCompletionChunkDelta represents OpenAI streaming delta
 type ChatCompletionChunkDelta struct {
-	Role      string                             `json:"role,omitempty"`
-	Content   string                             `json:"content,omitempty"`
-	ToolCalls []ChatCompletionChunkDeltaToolCall `json:"tool_calls,omitempty"`
+	Role             string                             `json:"role,omitempty"`
+	Content          string                             `json:"content,omitempty"`
+	ReasoningContent string                             `json:"reasoning_content,omitempty"`
+	ToolCalls        []ChatCompletionChunkDeltaToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatCompletionChunk represents a streaming chunk

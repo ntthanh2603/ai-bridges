@@ -44,6 +44,7 @@ type ChatSession interface {
 // Response represents a provider's response
 type Response struct {
 	Text           string         `json:"text"`
+	ReasoningText  string         `json:"reasoning_text,omitempty"`
 	Images         []Image        `json:"images,omitempty"`
 	Candidates     []Candidate    `json:"candidates,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`

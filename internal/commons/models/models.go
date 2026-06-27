@@ -117,6 +117,7 @@ type Delta struct {
 	Type        string `json:"type,omitempty"`         // "text_delta", "input_json_delta"
 	Content     string `json:"content,omitempty"`      // for OpenAI
 	Text        string `json:"text,omitempty"`         // for Claude
+	Thinking    string `json:"thinking,omitempty"`     // for Claude
 	PartialJSON string `json:"partial_json,omitempty"` // for Claude tool use
 	StopReason  string `json:"stop_reason,omitempty"`  // for Claude
 	Role        string `json:"role,omitempty"`

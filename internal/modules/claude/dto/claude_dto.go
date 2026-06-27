@@ -42,11 +42,12 @@ type MessageResponse struct {
 
 // ConfigContent represents the content block in a response
 type ConfigContent struct {
-	Type  string `json:"type"` // "text" or "tool_use"
-	Text  string `json:"text,omitempty"`
-	ID    string `json:"id,omitempty"`    // for tool_use
-	Name  string `json:"name,omitempty"`  // for tool_use
-	Input map[string]interface{} `json:"input,omitempty"` // for tool_use
+	Type     string                 `json:"type"` // "text", "tool_use", "thinking"
+	Text     string                 `json:"text,omitempty"`
+	Thinking string                 `json:"thinking,omitempty"`
+	ID       string                 `json:"id,omitempty"`    // for tool_use
+	Name     string                 `json:"name,omitempty"`  // for tool_use
+	Input    map[string]interface{} `json:"input,omitempty"` // for tool_use
 }
 
 // StreamEvent represents a streaming event

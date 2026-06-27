@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"gemini-web-to-api/internal/commons/configs"
+	"gemini-web-to-api/internal/commons/utils"
 
 	"github.com/google/uuid"
 	"github.com/imroc/req/v3"
@@ -893,10 +894,12 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 		for _, image := range imagesByURL {
 			images = append(images, image)
 		}
+		reasoning, cleanText := utils.ExtractThinkingAndText(finalResText)
 		return &Response{
-			Text:     finalResText,
-			Images:   images,
-			Metadata: finalMetadata,
+			Text:          cleanText,
+			ReasoningText: reasoning,
+			Images:        images,
+			Metadata:      finalMetadata,
 		}, nil
 	}
 

@@ -113,6 +113,8 @@ func (s *OpenAIService) CreateChatCompletion(ctx context.Context, req dto.ChatCo
 		message.Content = content
 	}
 
+	message.ReasoningContent = response.ReasoningText
+
 	// Logic: Construct Response
 	return &dto.ChatCompletionResponse{
 		ID:      fmt.Sprintf("chatcmpl-%d", time.Now().Unix()),
@@ -276,6 +278,27 @@ func (s *OpenAIService) CreateChatCompletionStream(ctx context.Context, req dto.
 	}
 
 	// Case 2: Regular Text
+	if choice.Message.ReasoningContent != "" {
+		reasoningChunks := utils.SplitResponseIntoChunks(choice.Message.ReasoningContent, 30)
+		for _, content := range reasoningChunks {
+			if !onEvent(dto.ChatCompletionChunk{
+				ID:      chunkID,
+				Object:  "chat.completion.chunk",
+				Created: created,
+				Model:   req.Model,
+				Choices: []dto.ChunkChoice{{
+					Index: 0,
+					Delta: dto.ChatCompletionChunkDelta{ReasoningContent: content},
+				}},
+			}) {
+				return nil
+			}
+			if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
+				return nil
+			}
+		}
+	}
+
 	chunks := utils.SplitResponseIntoChunks(choice.Message.Content, 30)
 	for _, content := range chunks {
 		if !onEvent(dto.ChatCompletionChunk{
