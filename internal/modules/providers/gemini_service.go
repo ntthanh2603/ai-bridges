@@ -836,7 +836,16 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 		if err := json.Unmarshal([]byte(line), &root); err == nil {
 			for _, item := range root {
 				itemArray, ok := item.([]interface{})
-				if !ok || len(itemArray) < 3 {
+				if !ok || len(itemArray) < 1 {
+					continue
+				}
+
+				// Check for BardErrorInfo error block
+				if errStr := extractBardError(itemArray); errStr != "" {
+					return nil, errors.New(errStr)
+				}
+
+				if len(itemArray) < 3 {
 					continue
 				}
 
@@ -908,6 +917,68 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 		sample = sample[:500]
 	}
 	return nil, fmt.Errorf("failed to parse response. Sample: %s", sample)
+}
+
+// extractBardError recursively searches for BardErrorInfo and extracts codes/messages
+func extractBardError(item []interface{}) string {
+	var codes []int
+	var checkWithCodes func(v any) bool
+	checkWithCodes = func(v any) bool {
+		switch val := v.(type) {
+		case []interface{}:
+			f := false
+			for _, child := range val {
+				if checkWithCodes(child) {
+					f = true
+				}
+			}
+			return f
+		case string:
+			return strings.Contains(val, "BardErrorInfo")
+		case float64:
+			codes = append(codes, int(val))
+			return false
+		}
+		return false
+	}
+
+	foundError := false
+	for _, el := range item {
+		tempCodes := []int{}
+		// We can intercept codes during traversal
+		var check func(v any) bool
+		check = func(v any) bool {
+			switch val := v.(type) {
+			case []interface{}:
+				f := false
+				for _, child := range val {
+					if check(child) {
+						f = true
+					}
+				}
+				return f
+			case string:
+				return strings.Contains(val, "BardErrorInfo")
+			case float64:
+				tempCodes = append(tempCodes, int(val))
+				return false
+			}
+			return false
+		}
+		if check(el) {
+			foundError = true
+			codes = tempCodes
+			break
+		}
+	}
+
+	if foundError {
+		if len(codes) > 0 {
+			return fmt.Sprintf("Google Gemini Web returned an error (BardErrorInfo code %v). This usually indicates session expiration, rate limits, context window limits, or bot protection/CAPTCHA block.", codes)
+		}
+		return "Google Gemini Web returned a BardErrorInfo block."
+	}
+	return ""
 }
 
 func collectImages(value any, out map[string]Image) {
