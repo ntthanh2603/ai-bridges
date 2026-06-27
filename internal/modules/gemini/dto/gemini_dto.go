@@ -34,6 +34,7 @@ type Content struct {
 // Part represents a part of content
 type Part struct {
 	Text             string            `json:"text,omitempty"`
+	Thought          bool              `json:"thought,omitempty"`
 	InlineData       *InlineData       `json:"inline_data,omitempty"`
 	FileData         *FileData         `json:"file_data,omitempty"`
 	FunctionCall     *FunctionCall     `json:"function_call,omitempty"`
@@ -43,6 +44,7 @@ type Part struct {
 func (p *Part) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Text                  string            `json:"text"`
+		Thought               bool              `json:"thought"`
 		InlineDataSnake       *InlineData       `json:"inline_data"`
 		InlineDataCamel       *InlineData       `json:"inlineData"`
 		FileDataSnake         *FileData         `json:"file_data"`
@@ -56,6 +58,7 @@ func (p *Part) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	p.Text = raw.Text
+	p.Thought = raw.Thought
 	p.InlineData = raw.InlineDataSnake
 	if p.InlineData == nil {
 		p.InlineData = raw.InlineDataCamel
@@ -139,12 +142,19 @@ func (d *InlineData) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ThinkingConfig represents the thinking configuration for Gemini models
+type ThinkingConfig struct {
+	ThinkingBudget int32  `json:"thinkingBudget,omitempty"`
+	ThinkingLevel  string `json:"thinkingLevel,omitempty"`
+}
+
 // GenerationConfig represents generation configuration
 type GenerationConfig struct {
-	Temperature     float32 `json:"temperature,omitempty"`
-	TopP            float32 `json:"topP,omitempty"`
-	TopK            int32   `json:"topK,omitempty"`
-	MaxOutputTokens int32   `json:"maxOutputTokens,omitempty"`
+	Temperature     float32         `json:"temperature,omitempty"`
+	TopP            float32         `json:"topP,omitempty"`
+	TopK            int32           `json:"topK,omitempty"`
+	MaxOutputTokens int32           `json:"maxOutputTokens,omitempty"`
+	ThinkingConfig  *ThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
 // GeminiGenerateResponse represents a Gemini generate response

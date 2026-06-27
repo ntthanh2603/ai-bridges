@@ -81,6 +81,10 @@ func (s *GeminiService) GenerateContent(ctx context.Context, modelID string, req
 	resParts := []dto.Part{}
 	finishReason := "STOP"
 
+	if response.ReasoningText != "" {
+		resParts = append(resParts, dto.Part{Text: response.ReasoningText, Thought: true})
+	}
+
 	if hasTools {
 		functionCalls, content := s.parseToolBridgeOutput(req, response.Text)
 		if len(functionCalls) > 0 {
@@ -166,29 +170,51 @@ func (s *GeminiService) GenerateContentStream(ctx context.Context, modelID strin
 		return nil
 	}
 
-	// Simulated text streaming
-	var fullText strings.Builder
+	// Simulated text streaming part-by-part
 	for _, part := range candidate.Content.Parts {
-		fullText.WriteString(part.Text)
-	}
-
-	chunks := utils.SplitResponseIntoChunks(fullText.String(), 30)
-	for _, content := range chunks {
-		if !onEvent(dto.GeminiGenerateResponse{
-			Candidates: []dto.Candidate{
-				{
-					Index: 0,
-					Content: dto.Content{
-						Role:  "model",
-						Parts: []dto.Part{{Text: content}},
-					},
-				},
-			},
-		}) {
-			return nil
+		if part.Text == "" {
+			continue
 		}
-		if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
-			return nil
+		if part.Thought {
+			chunks := utils.SplitResponseIntoChunks(part.Text, 30)
+			for _, content := range chunks {
+				if !onEvent(dto.GeminiGenerateResponse{
+					Candidates: []dto.Candidate{
+						{
+							Index: 0,
+							Content: dto.Content{
+								Role:  "model",
+								Parts: []dto.Part{{Text: content, Thought: true}},
+							},
+						},
+					},
+				}) {
+					return nil
+				}
+				if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
+					return nil
+				}
+			}
+		} else {
+			chunks := utils.SplitResponseIntoChunks(part.Text, 30)
+			for _, content := range chunks {
+				if !onEvent(dto.GeminiGenerateResponse{
+					Candidates: []dto.Candidate{
+						{
+							Index: 0,
+							Content: dto.Content{
+								Role:  "model",
+								Parts: []dto.Part{{Text: content}},
+							},
+						},
+					},
+				}) {
+					return nil
+				}
+				if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
+					return nil
+				}
+			}
 		}
 	}
 

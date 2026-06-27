@@ -72,6 +72,10 @@ func (s *ClaudeService) GenerateMessage(ctx context.Context, req dto.MessageRequ
 	resContent := []dto.ConfigContent{}
 	stopReason := "end_turn"
 
+	if response.ReasoningText != "" {
+		resContent = append(resContent, dto.ConfigContent{Type: "thinking", Thinking: response.ReasoningText})
+	}
+
 	if hasTools {
 		toolUses, text := s.parseToolBridgeOutput(req, response.Text)
 		if len(toolUses) > 0 {
@@ -136,7 +140,24 @@ func (s *ClaudeService) GenerateMessageStream(ctx context.Context, req dto.Messa
 			return nil
 		}
 
-		if content.Type == "text" {
+		if content.Type == "thinking" {
+			chunks := common.SplitResponseIntoChunks(content.Thinking, 30)
+			for _, chunk := range chunks {
+				if !onEvent(dto.StreamEvent{
+					Type:  "content_block_delta",
+					Index: i,
+					DeltaField: &models.Delta{
+						Type:     "thinking_delta",
+						Thinking: chunk,
+					},
+				}) {
+					return nil
+				}
+				if !common.SleepWithCancel(ctx, 30*time.Millisecond) {
+					return nil
+				}
+			}
+		} else if content.Type == "text" {
 			chunks := common.SplitResponseIntoChunks(content.Text, 30)
 			for _, chunk := range chunks {
 				if !onEvent(dto.StreamEvent{

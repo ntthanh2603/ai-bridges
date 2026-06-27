@@ -178,3 +178,47 @@ func StripCodeFence(text string) string {
 	}
 	return trimmed
 }
+
+// ExtractThinkingAndText separates the thinking process and final text from the raw string.
+// It searches for the start token (e.g. <ctrl94>thought) and end token (e.g. <ctrl95>).
+func ExtractThinkingAndText(raw string) (string, string) {
+	var startIdx = -1
+	var startLen = 0
+
+	markers := []string{"<ctrl94>thought", "<ctrl94>", "ctrl94"}
+	for _, marker := range markers {
+		if idx := strings.Index(raw, marker); idx != -1 {
+			startIdx = idx
+			startLen = len(marker)
+			break
+		}
+	}
+
+	if startIdx == -1 {
+		return "", raw
+	}
+
+	var endIdx = -1
+	var endLen = 0
+	endMarkers := []string{"<ctrl95>", "ctrl95"}
+	for _, marker := range endMarkers {
+		if idx := strings.Index(raw[startIdx+startLen:], marker); idx != -1 {
+			endIdx = startIdx + startLen + idx
+			endLen = len(marker)
+			break
+		}
+	}
+
+	if endIdx == -1 {
+		thinking := strings.TrimSpace(raw[startIdx+startLen:])
+		textBefore := strings.TrimSpace(raw[:startIdx])
+		return thinking, textBefore
+	}
+
+	thinking := strings.TrimSpace(raw[startIdx+startLen : endIdx])
+	textBefore := raw[:startIdx]
+	textAfter := raw[endIdx+endLen:]
+
+	textContent := strings.TrimSpace(textBefore + textAfter)
+	return thinking, textContent
+}
