@@ -922,50 +922,32 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 // extractBardError recursively searches for BardErrorInfo and extracts codes/messages
 func extractBardError(item []interface{}) string {
 	var codes []int
-	var checkWithCodes func(v any) bool
-	checkWithCodes = func(v any) bool {
+	var foundError bool
+
+	var tempCodes []int
+	var walk func(v any) bool
+	walk = func(v any) bool {
 		switch val := v.(type) {
 		case []interface{}:
-			f := false
+			hasError := false
 			for _, child := range val {
-				if checkWithCodes(child) {
-					f = true
+				if walk(child) {
+					hasError = true
 				}
 			}
-			return f
+			return hasError
 		case string:
 			return strings.Contains(val, "BardErrorInfo")
 		case float64:
-			codes = append(codes, int(val))
+			tempCodes = append(tempCodes, int(val))
 			return false
 		}
 		return false
 	}
 
-	foundError := false
 	for _, el := range item {
-		tempCodes := []int{}
-		// We can intercept codes during traversal
-		var check func(v any) bool
-		check = func(v any) bool {
-			switch val := v.(type) {
-			case []interface{}:
-				f := false
-				for _, child := range val {
-					if check(child) {
-						f = true
-					}
-				}
-				return f
-			case string:
-				return strings.Contains(val, "BardErrorInfo")
-			case float64:
-				tempCodes = append(tempCodes, int(val))
-				return false
-			}
-			return false
-		}
-		if check(el) {
+		tempCodes = nil
+		if walk(el) {
 			foundError = true
 			codes = tempCodes
 			break
