@@ -2,6 +2,7 @@ package providers
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"go.uber.org/zap"
@@ -78,3 +79,21 @@ func TestNormalizeImageURLHandlesGoogleusercontentReferences(t *testing.T) {
 		}
 	}
 }
+
+func TestParseResponseHandlesBardErrorInfo(t *testing.T) {
+	errPayload := `)]}'
+
+	[["wrb.fr",null,null,null,null,[13,null,[["type.googleapis.com/assistant.boq.bard.application.BardErrorInfo",[1152]]]]],["di",2461]]`
+
+	client := &Client{log: zap.NewNop()}
+	_, err := client.parseResponse(errPayload)
+	if err == nil {
+		t.Fatal("Expected parseResponse to fail with error")
+	}
+
+	expectedSubstr := "BardErrorInfo code [13 1152]"
+	if !strings.Contains(err.Error(), expectedSubstr) {
+		t.Fatalf("Expected error to contain %q, got: %v", expectedSubstr, err)
+	}
+}
+

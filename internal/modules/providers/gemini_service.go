@@ -836,7 +836,16 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 		if err := json.Unmarshal([]byte(line), &root); err == nil {
 			for _, item := range root {
 				itemArray, ok := item.([]interface{})
-				if !ok || len(itemArray) < 3 {
+				if !ok || len(itemArray) < 1 {
+					continue
+				}
+
+				// Check for BardErrorInfo error block
+				if errStr := extractBardError(itemArray); errStr != "" {
+					return nil, errors.New(errStr)
+				}
+
+				if len(itemArray) < 3 {
 					continue
 				}
 
@@ -908,6 +917,50 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 		sample = sample[:500]
 	}
 	return nil, fmt.Errorf("failed to parse response. Sample: %s", sample)
+}
+
+// extractBardError recursively searches for BardErrorInfo and extracts codes/messages
+func extractBardError(item []interface{}) string {
+	var codes []int
+	var foundError bool
+
+	var tempCodes []int
+	var walk func(v any) bool
+	walk = func(v any) bool {
+		switch val := v.(type) {
+		case []interface{}:
+			hasError := false
+			for _, child := range val {
+				if walk(child) {
+					hasError = true
+				}
+			}
+			return hasError
+		case string:
+			return strings.Contains(val, "BardErrorInfo")
+		case float64:
+			tempCodes = append(tempCodes, int(val))
+			return false
+		}
+		return false
+	}
+
+	for _, el := range item {
+		tempCodes = nil
+		if walk(el) {
+			foundError = true
+			codes = tempCodes
+			break
+		}
+	}
+
+	if foundError {
+		if len(codes) > 0 {
+			return fmt.Sprintf("Google Gemini Web returned an error (BardErrorInfo code %v). This usually indicates session expiration, rate limits, context window limits, or bot protection/CAPTCHA block.", codes)
+		}
+		return "Google Gemini Web returned a BardErrorInfo block."
+	}
+	return ""
 }
 
 func collectImages(value any, out map[string]Image) {
