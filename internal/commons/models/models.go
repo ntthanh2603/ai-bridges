@@ -22,8 +22,10 @@ type Attachment struct {
 
 func (m *Message) UnmarshalJSON(data []byte) error {
 	type rawMessage struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content"`
+		Role       string            `json:"role"`
+		Content    json.RawMessage   `json:"content"`
+		ToolCalls  []json.RawMessage `json:"tool_calls,omitempty"`
+		ToolCallID string            `json:"tool_call_id,omitempty"`
 	}
 
 	var raw rawMessage
@@ -33,6 +35,47 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	m.Role = raw.Role
 	m.Content = ""
 	m.Attachments = nil
+
+	// Check if this is an OpenAI tool result message (role = tool)
+	if raw.ToolCallID != "" {
+		var contentStr string
+		if len(raw.Content) > 0 && string(raw.Content) != "null" {
+			if err := json.Unmarshal(raw.Content, &contentStr); err == nil {
+				m.Content = fmt.Sprintf("[Tool Result for ID %s]: %s", raw.ToolCallID, contentStr)
+			} else {
+				m.Content = fmt.Sprintf("[Tool Result for ID %s]: %s", raw.ToolCallID, string(raw.Content))
+			}
+		} else {
+			m.Content = fmt.Sprintf("[Tool Result for ID %s]: ", raw.ToolCallID)
+		}
+		return nil
+	}
+
+	// Check if this is an OpenAI assistant message containing tool calls
+	if len(raw.ToolCalls) > 0 {
+		var textParts []string
+		var contentStr string
+		if len(raw.Content) > 0 && string(raw.Content) != "null" {
+			if err := json.Unmarshal(raw.Content, &contentStr); err == nil && contentStr != "" {
+				textParts = append(textParts, contentStr)
+			}
+		}
+		for _, tcRaw := range raw.ToolCalls {
+			var tc struct {
+				ID       string `json:"id"`
+				Type     string `json:"type"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			}
+			if err := json.Unmarshal(tcRaw, &tc); err == nil {
+				textParts = append(textParts, fmt.Sprintf("[Call Tool: %s with ID %s and Input: %s]", tc.Function.Name, tc.ID, tc.Function.Arguments))
+			}
+		}
+		m.Content = strings.Join(textParts, "\n")
+		return nil
+	}
 
 	if len(raw.Content) == 0 || string(raw.Content) == "null" {
 		return nil
@@ -45,9 +88,14 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	}
 
 	var parts []struct {
-		Type   string `json:"type"`
-		Text   string `json:"text,omitempty"`
-		Source *struct {
+		Type      string          `json:"type"`
+		Text      string          `json:"text,omitempty"`
+		ID        string          `json:"id,omitempty"`
+		Name      string          `json:"name,omitempty"`
+		Input     json.RawMessage `json:"input,omitempty"`
+		ToolUseID string          `json:"tool_use_id,omitempty"`
+		Content   json.RawMessage `json:"content,omitempty"`
+		Source    *struct {
 			Type      string `json:"type"`
 			MediaType string `json:"media_type"`
 			Data      string `json:"data"`
@@ -74,6 +122,34 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 				MimeType: part.Source.MediaType,
 				Data:     part.Source.Data,
 			})
+		case "tool_use":
+			inputStr := string(part.Input)
+			textParts = append(textParts, fmt.Sprintf("[Call Tool: %s with ID %s and Input: %s]", part.Name, part.ID, inputStr))
+		case "tool_result":
+			var rContent string
+			if len(part.Content) > 0 && string(part.Content) != "null" {
+				if err := json.Unmarshal(part.Content, &rContent); err == nil {
+					textParts = append(textParts, fmt.Sprintf("[Tool Result for ID %s]: %s", part.ToolUseID, rContent))
+				} else {
+					var innerParts []struct {
+						Type string `json:"type"`
+						Text string `json:"text,omitempty"`
+					}
+					if err := json.Unmarshal(part.Content, &innerParts); err == nil {
+						var innerText []string
+						for _, ip := range innerParts {
+							if ip.Type == "text" {
+								innerText = append(innerText, ip.Text)
+							}
+						}
+						textParts = append(textParts, fmt.Sprintf("[Tool Result for ID %s]: %s", part.ToolUseID, strings.Join(innerText, "\n")))
+					} else {
+						textParts = append(textParts, fmt.Sprintf("[Tool Result for ID %s]: %s", part.ToolUseID, string(part.Content)))
+					}
+				}
+			} else {
+				textParts = append(textParts, fmt.Sprintf("[Tool Result for ID %s]: ", part.ToolUseID))
+			}
 		}
 	}
 	m.Content = strings.Join(textParts, "\n")
