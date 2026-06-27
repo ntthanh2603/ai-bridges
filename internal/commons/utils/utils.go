@@ -185,7 +185,7 @@ func ExtractThinkingAndText(raw string) (string, string) {
 	var startIdx = -1
 	var startLen = 0
 
-	markers := []string{"<ctrl94>thought", "<ctrl94>", "ctrl94"}
+	markers := []string{"<ctrl94>thought", "<ctrl94>"}
 	for _, marker := range markers {
 		if idx := strings.Index(raw, marker); idx != -1 {
 			startIdx = idx
@@ -200,7 +200,7 @@ func ExtractThinkingAndText(raw string) (string, string) {
 
 	var endIdx = -1
 	var endLen = 0
-	endMarkers := []string{"<ctrl95>", "ctrl95"}
+	endMarkers := []string{"<ctrl95>"}
 	for _, marker := range endMarkers {
 		if idx := strings.Index(raw[startIdx+startLen:], marker); idx != -1 {
 			endIdx = startIdx + startLen + idx

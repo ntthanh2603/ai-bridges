@@ -175,45 +175,23 @@ func (s *GeminiService) GenerateContentStream(ctx context.Context, modelID strin
 		if part.Text == "" {
 			continue
 		}
-		if part.Thought {
-			chunks := utils.SplitResponseIntoChunks(part.Text, 30)
-			for _, content := range chunks {
-				if !onEvent(dto.GeminiGenerateResponse{
-					Candidates: []dto.Candidate{
-						{
-							Index: 0,
-							Content: dto.Content{
-								Role:  "model",
-								Parts: []dto.Part{{Text: content, Thought: true}},
-							},
+		chunks := utils.SplitResponseIntoChunks(part.Text, 30)
+		for _, content := range chunks {
+			if !onEvent(dto.GeminiGenerateResponse{
+				Candidates: []dto.Candidate{
+					{
+						Index: 0,
+						Content: dto.Content{
+							Role:  "model",
+							Parts: []dto.Part{{Text: content, Thought: part.Thought}},
 						},
 					},
-				}) {
-					return nil
-				}
-				if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
-					return nil
-				}
+				},
+			}) {
+				return nil
 			}
-		} else {
-			chunks := utils.SplitResponseIntoChunks(part.Text, 30)
-			for _, content := range chunks {
-				if !onEvent(dto.GeminiGenerateResponse{
-					Candidates: []dto.Candidate{
-						{
-							Index: 0,
-							Content: dto.Content{
-								Role:  "model",
-								Parts: []dto.Part{{Text: content}},
-							},
-						},
-					},
-				}) {
-					return nil
-				}
-				if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
-					return nil
-				}
+			if !utils.SleepWithCancel(ctx, 30*time.Millisecond) {
+				return nil
 			}
 		}
 	}

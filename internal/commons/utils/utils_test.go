@@ -29,7 +29,7 @@ func TestExtractThinkingAndText(t *testing.T) {
 		},
 		{
 			name:          "Alternate start tag",
-			input:         "<ctrl94>\nThinking...\nctrl95\nDone",
+			input:         "<ctrl94>\nThinking...\n<ctrl95>\nDone",
 			wantThinking:  "Thinking...",
 			wantText:      "Done",
 		},
