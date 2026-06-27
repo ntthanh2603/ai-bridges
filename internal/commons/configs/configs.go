@@ -29,6 +29,7 @@ type GeminiConfig struct {
 	RefreshInterval int
 	MaxRetries      int
 	Cookies         string
+	Temporary       bool
 }
 
 type ClaudeConfig struct {
@@ -77,6 +78,7 @@ func New() (*Config, error) {
 	cfg.Gemini.Cookies = os.Getenv("GEMINI_COOKIES")
 	cfg.Gemini.RefreshInterval = getEnvInt("GEMINI_REFRESH_INTERVAL", defaultGeminiRefreshInterval)
 	cfg.Gemini.MaxRetries = getEnvInt("GEMINI_MAX_RETRIES", defaultGeminiMaxRetries)
+	cfg.Gemini.Temporary = getEnvBool("GEMINI_TEMPORARY", false)
 
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {

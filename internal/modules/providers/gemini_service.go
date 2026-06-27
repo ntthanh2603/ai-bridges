@@ -43,8 +43,9 @@ type Client struct {
 	autoRefresh     bool
 	refreshInterval time.Duration
 	stopRefresh     chan struct{}
-	maxRetries      int
-	cachedModels    []ModelInfo
+	maxRetries       int
+	cachedModels     []ModelInfo
+	defaultTemporary bool
 }
 
 type CookieStore struct {
@@ -87,13 +88,14 @@ func NewClient(cfg *configs.Config, log *zap.Logger) *Client {
 	}
 
 	return &Client{
-		httpClient:      client,
-		cookies:         cookies,
-		autoRefresh:     true,
-		refreshInterval: time.Duration(refreshIntervalMinutes) * time.Minute,
-		stopRefresh:     make(chan struct{}),
-		maxRetries:      cfg.Gemini.MaxRetries,
-		log:             log,
+		httpClient:       client,
+		cookies:          cookies,
+		autoRefresh:      true,
+		refreshInterval:  time.Duration(refreshIntervalMinutes) * time.Minute,
+		stopRefresh:      make(chan struct{}),
+		maxRetries:       cfg.Gemini.MaxRetries,
+		log:              log,
+		defaultTemporary: cfg.Gemini.Temporary,
 	}
 }
 
@@ -535,7 +537,7 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	}
 
 	requestID := strings.ToUpper(uuid.NewString())
-	inner := buildGenerateInner(prompt, uploadedFiles, config.Model, language, requestID)
+	inner := buildGenerateInner(prompt, uploadedFiles, config.Model, language, requestID, c.defaultTemporary)
 
 	innerJSON, _ := json.Marshal(inner)
 	outer := []interface{}{nil, string(innerJSON)}
@@ -604,6 +606,16 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		if len(uploadedFiles) > 0 {
 			httpReq.Header.Set("x-goog-ext-525005358-jspb", fmt.Sprintf(`["%s",1]`, requestID))
 		}
+		modeFlag := 0
+		if c.defaultTemporary {
+			modeFlag = 1
+		}
+		traceID := strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+		extHeader := fmt.Sprintf(
+			`[1,null,null,null,"%s",null,null,%d,[4,5,6,8],null,null,2,null,null,6,1,"%s"]`,
+			traceID, modeFlag, strings.ToUpper(uuid.NewString()),
+		)
+		httpReq.Header.Set("x-goog-ext-525001261-jspb", extHeader)
 		if cookieHdr != "" {
 			httpReq.Header.Set("Cookie", cookieHdr)
 		}
@@ -702,27 +714,24 @@ func resolveAvailableModel(requested string, models []ModelInfo) (string, bool) 
 	return requested, false
 }
 
-func buildGenerateInner(prompt string, files []uploadedFile, model, language, requestID string) []interface{} {
+func buildGenerateInner(prompt string, files []uploadedFile, model, language, requestID string, isTemporary bool) []interface{} {
+	var messageContent []interface{}
 	if len(files) == 0 {
-		return []interface{}{
-			[]interface{}{prompt},
-			nil,
-			nil,
-			model,
+		messageContent = []interface{}{prompt}
+	} else {
+		fileData := make([]interface{}, 0, len(files))
+		for _, file := range files {
+			fileData = append(fileData, []interface{}{[]interface{}{file.ID}, file.Name})
 		}
+		messageContent = []interface{}{prompt, 0, nil, fileData, nil, nil, 0}
 	}
 
-	fileData := make([]interface{}, 0, len(files))
-	for _, file := range files {
-		fileData = append(fileData, []interface{}{[]interface{}{file.ID}, file.Name})
-	}
-
-	messageContent := []interface{}{prompt, 0, nil, fileData, nil, nil, 0}
 	defaultMetadata := []interface{}{"", "", "", nil, nil, nil, nil, nil, nil, ""}
 	inner := make([]interface{}, 69)
 	inner[0] = messageContent
 	inner[1] = []interface{}{language}
 	inner[2] = defaultMetadata
+	inner[3] = model
 	inner[6] = []interface{}{1}
 	inner[7] = 1
 	inner[10] = 1
@@ -736,6 +745,12 @@ func buildGenerateInner(prompt string, files []uploadedFile, model, language, re
 	inner[59] = requestID
 	inner[61] = []interface{}{}
 	inner[68] = 2
+
+	if isTemporary {
+		inner[45] = 1
+		inner[67] = 0
+	}
+
 	return inner
 }
 

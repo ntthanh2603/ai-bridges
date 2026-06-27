@@ -75,6 +75,7 @@ docker run -d -p 4981:4981 \
   -e GEMINI_1PSIDTS="your_psidts_here" \
   -e GEMINI_REFRESH_INTERVAL=30 \
   -e GEMINI_MAX_RETRIES=3 \
+  -e GEMINI_TEMPORARY=false \
   -e APP_ENV=production \
   -e RATE_LIMIT_ENABLED=true \
   -e RATE_LIMIT_WINDOW_MS=60000 \
@@ -123,6 +124,7 @@ cd gemini-web-to-api
    GEMINI_1PSIDTS=your_psidts_here
    GEMINI_REFRESH_INTERVAL=30
    GEMINI_MAX_RETRIES=3
+   GEMINI_TEMPORARY=false
    APP_ENV=production
    RATE_LIMIT_ENABLED=true
    RATE_LIMIT_WINDOW_MS=60000
@@ -176,6 +178,7 @@ Your Gemini Web To API is running at `http://localhost:4981` 🎉
 | `GEMINI_1PSIDTS`          | ✅ Yes   | —       | Timestamp cookie (prevents auth errors)            |
 | `GEMINI_REFRESH_INTERVAL` | ❌ No    | `30`    | Cookie rotation interval (minutes)                 |
 | `GEMINI_MAX_RETRIES`      | ❌ No    | `3`     | Max retry attempts when an API call fails          |
+| `GEMINI_TEMPORARY`        | ❌ No    | `false` | Enable stateless/incognito mode for all requests   |
 | `PORT`                    | ❌ No    | `4981`  | Server port                                        |
 | `RATE_LIMIT_ENABLED`      | ❌ No    | `false` | Enable or disable rate limiting                    |
 | `RATE_LIMIT_WINDOW_MS`    | ❌ No    | `60000` | Rate limit time window in milliseconds             |

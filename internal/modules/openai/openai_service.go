@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 
 	"go.uber.org/zap"
 )
+
+var imagePlaceholderRegex = regexp.MustCompile(`(?i)https?://googleusercontent\.com/image_generation_content/\d+`)
 
 type OpenAIService struct {
 	client *providers.Client
@@ -95,7 +98,19 @@ func (s *OpenAIService) CreateChatCompletion(ctx context.Context, req dto.ChatCo
 			message.Content = content
 		}
 	} else {
-		message.Content = response.Text
+		content := imagePlaceholderRegex.ReplaceAllString(response.Text, "")
+		content = strings.TrimSpace(content)
+		if len(response.Images) > 0 {
+			var imgMarkdowns []string
+			for _, img := range response.Images {
+				imgMarkdowns = append(imgMarkdowns, fmt.Sprintf("![image](%s)", img.URL))
+			}
+			if content != "" {
+				content += "\n\n"
+			}
+			content += strings.Join(imgMarkdowns, "\n")
+		}
+		message.Content = content
 	}
 
 	// Logic: Construct Response
