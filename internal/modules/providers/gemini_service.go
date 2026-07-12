@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -681,6 +682,9 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 			c.log.Info("GenerateContent succeeded after retry", zap.Int("attempt", attempt))
 		}
 		for i := range result.Images {
+			if !result.Images[i].Generated {
+				continue
+			}
 			encoded, downloadErr := c.downloadGeneratedImage(ctx, result.Images[i].URL, cookieHdr)
 			if downloadErr != nil {
 				c.log.Warn("Failed to download generated image", zap.Error(downloadErr))
@@ -698,19 +702,16 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 	return nil, fmt.Errorf("after %d attempts: %w", maxAttempts, lastErr)
 }
 
-func (c *Client) downloadGeneratedImage(ctx context.Context, rawURL, cookieHeader string) (string, error) {
-	imageURL := appendGoogleImageSize(rawURL, 2048)
-	parsedImageURL, err := url.Parse(imageURL)
-	if err != nil || !isTrustedGoogleMediaHost(parsedImageURL.Hostname()) {
-		return "", fmt.Errorf("refusing generated-image download from untrusted host")
-	}
-	client := &http.Client{
+const maxGeneratedImageBytes = 50 << 20
+
+func generatedImageHTTPClient(cookieHeader string) *http.Client {
+	return &http.Client{
 		Timeout: 2 * time.Minute,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many generated-image redirects")
 			}
-			if !isTrustedGoogleMediaHost(req.URL.Hostname()) {
+			if req.URL.Scheme != "https" || !isTrustedGoogleMediaHost(req.URL.Hostname()) {
 				return fmt.Errorf("refusing generated-image redirect to untrusted host")
 			}
 			if cookieHeader != "" {
@@ -720,6 +721,15 @@ func (c *Client) downloadGeneratedImage(ctx context.Context, rawURL, cookieHeade
 			return nil
 		},
 	}
+}
+
+func (c *Client) downloadGeneratedImage(ctx context.Context, rawURL, cookieHeader string) (string, error) {
+	imageURL := appendGoogleImageSize(rawURL, 2048)
+	parsedImageURL, err := url.Parse(imageURL)
+	if err != nil || parsedImageURL.Scheme != "https" || !isTrustedGoogleMediaHost(parsedImageURL.Hostname()) {
+		return "", fmt.Errorf("refusing generated-image download from untrusted host")
+	}
+	client := generatedImageHTTPClient(cookieHeader)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
 	if err != nil {
 		return "", err
@@ -737,9 +747,12 @@ func (c *Client) downloadGeneratedImage(ctx context.Context, rawURL, cookieHeade
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/") {
 		return "", fmt.Errorf("generated image download returned %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxGeneratedImageBytes+1))
 	if err != nil {
 		return "", err
+	}
+	if len(body) > maxGeneratedImageBytes {
+		return "", fmt.Errorf("generated image exceeds %d byte limit", maxGeneratedImageBytes)
 	}
 	return base64.StdEncoding.EncodeToString(body), nil
 }
@@ -914,10 +927,18 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 					continue
 				}
 				collectImages(payload, imagesByURL)
-
 				if len(payload) > 4 {
 					candidates, ok := payload[4].([]interface{})
 					if ok && candidates != nil && len(candidates) > 0 {
+						for _, rawCandidate := range candidates {
+							candidate, ok := rawCandidate.([]interface{})
+							if !ok {
+								continue
+							}
+							for _, image := range extractGeneratedImages(candidate) {
+								imagesByURL[image.URL] = image
+							}
+						}
 						firstCandidate, ok := candidates[0].([]interface{})
 						if ok && len(firstCandidate) >= 2 {
 							contentParts, ok := firstCandidate[1].([]interface{})
@@ -1021,9 +1042,6 @@ func extractBardError(item []interface{}) string {
 func collectImages(value any, out map[string]Image) {
 	switch v := value.(type) {
 	case []interface{}:
-		for _, image := range extractGeneratedImages(v) {
-			out[image.URL] = image
-		}
 		for _, item := range v {
 			collectImages(item, out)
 		}
@@ -1088,7 +1106,7 @@ func extractGeneratedImages(candidate []interface{}) []Image {
 		if !ok || normalizeImageURL(imageURL) == "" {
 			continue
 		}
-		image := Image{URL: normalizeImageURL(imageURL), MimeType: "image/png"}
+		image := Image{URL: normalizeImageURL(imageURL), MimeType: "image/png", Generated: true}
 		if filename, ok := metadata[2].(string); ok {
 			image.Title = filename
 		}
@@ -1115,10 +1133,19 @@ func extractGeneratedImages(candidate []interface{}) []Image {
 }
 
 func appendGoogleImageSize(rawURL string, size int) string {
-	if size <= 0 || strings.Contains(rawURL, "=s") || strings.Contains(rawURL, "=w") {
+	if size <= 0 {
 		return rawURL
 	}
-	return fmt.Sprintf("%s=s%d", rawURL, size)
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	lastSegment := path.Base(parsed.Path)
+	if strings.Contains(lastSegment, "=s") || strings.Contains(lastSegment, "=w") {
+		return rawURL
+	}
+	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + fmt.Sprintf("=s%d", size)
+	return parsed.String()
 }
 
 func isTrustedGoogleMediaHost(host string) bool {

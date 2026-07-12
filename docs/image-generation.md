@@ -90,7 +90,7 @@ with open("generated.png", "wb") as file:
 
 ## Image input and multiple references
 
-Image input uses the OpenAI multimodal chat format. The bridge accepts remote URLs and `data:` URLs.
+Image input uses the OpenAI multimodal chat format. The current OpenAI-compatible endpoint accepts base64 `data:` URLs. Remote HTTP(S) image URLs are not downloaded by the bridge.
 
 ```python
 import base64

@@ -62,13 +62,14 @@ type Message struct {
 
 // Image represents an image in the response
 type Image struct {
-	URL      string `json:"url"`
-	B64JSON  string `json:"b64_json,omitempty"`
-	Title    string `json:"title,omitempty"`
-	AltText  string `json:"alt_text,omitempty"`
-	Width    int    `json:"width,omitempty"`
-	Height   int    `json:"height,omitempty"`
-	MimeType string `json:"mime_type,omitempty"`
+	URL       string `json:"url"`
+	B64JSON   string `json:"b64_json,omitempty"`
+	Generated bool   `json:"generated,omitempty"`
+	Title     string `json:"title,omitempty"`
+	AltText   string `json:"alt_text,omitempty"`
+	Width     int    `json:"width,omitempty"`
+	Height    int    `json:"height,omitempty"`
+	MimeType  string `json:"mime_type,omitempty"`
 }
 
 // Candidate represents an alternative response
