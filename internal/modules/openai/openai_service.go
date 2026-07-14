@@ -148,9 +148,13 @@ func (s *OpenAIService) CreateImageGeneration(ctx context.Context, req dto.Image
 	}
 
 	imagePrompt := buildImageGenerationPrompt(prompt, req.Size)
+	wantB64 := strings.EqualFold(req.ResponseFormat, "b64_json")
 	opts := []providers.GenerateOption{}
 	if req.Model != "" {
 		opts = append(opts, providers.WithModel(req.Model))
+	}
+	if wantB64 {
+		opts = append(opts, providers.WithGeneratedImageDownload(true))
 	}
 
 	data := make([]dto.ImageGenerationData, 0, n)
@@ -159,16 +163,23 @@ func (s *OpenAIService) CreateImageGeneration(ctx context.Context, req dto.Image
 		if err != nil {
 			return nil, err
 		}
-		if len(response.Images) == 0 {
+
+		generatedImages := make([]providers.Image, 0, len(response.Images))
+		for _, image := range response.Images {
+			if image.Generated {
+				generatedImages = append(generatedImages, image)
+			}
+		}
+		if len(generatedImages) == 0 {
 			return nil, fmt.Errorf("provider returned no generated images")
 		}
 
-		for _, image := range response.Images {
+		for _, image := range generatedImages {
 			if len(data) >= n {
 				break
 			}
 			item := dto.ImageGenerationData{RevisedPrompt: prompt}
-			if strings.EqualFold(req.ResponseFormat, "b64_json") {
+			if wantB64 {
 				if image.B64JSON == "" {
 					return nil, fmt.Errorf("provider returned image metadata without image bytes")
 				}

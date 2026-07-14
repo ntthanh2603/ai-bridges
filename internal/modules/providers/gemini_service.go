@@ -681,16 +681,18 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		if attempt > 1 {
 			c.log.Info("GenerateContent succeeded after retry", zap.Int("attempt", attempt))
 		}
-		for i := range result.Images {
-			if !result.Images[i].Generated {
-				continue
+		if config.DownloadGeneratedImages {
+			for i := range result.Images {
+				if !result.Images[i].Generated {
+					continue
+				}
+				encoded, downloadErr := c.downloadGeneratedImage(ctx, result.Images[i].URL, cookieHdr)
+				if downloadErr != nil {
+					c.log.Warn("Failed to download generated image", zap.Error(downloadErr))
+					continue
+				}
+				result.Images[i].B64JSON = encoded
 			}
-			encoded, downloadErr := c.downloadGeneratedImage(ctx, result.Images[i].URL, cookieHdr)
-			if downloadErr != nil {
-				c.log.Warn("Failed to download generated image", zap.Error(downloadErr))
-				continue
-			}
-			result.Images[i].B64JSON = encoded
 		}
 		return result, nil
 	}

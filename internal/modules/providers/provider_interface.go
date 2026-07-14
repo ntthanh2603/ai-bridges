@@ -92,11 +92,12 @@ type GenerateOption func(*GenerateConfig)
 
 // GenerateConfig holds generation configuration
 type GenerateConfig struct {
-	Model       string
-	Files       []string
-	InputFiles  []InputFile
-	Temperature float64
-	MaxTokens   int
+	Model                   string
+	Files                   []string
+	InputFiles              []InputFile
+	Temperature             float64
+	MaxTokens               int
+	DownloadGeneratedImages bool
 }
 
 // InputFile is an in-memory file to upload with a generation request.
@@ -133,6 +134,16 @@ func WithFiles(files []string) GenerateOption {
 func WithInputFiles(files []InputFile) GenerateOption {
 	return func(c *GenerateConfig) {
 		c.InputFiles = files
+	}
+}
+
+// WithGeneratedImageDownload requests that the provider authenticate and
+// download the bytes of any generated image, populating Image.B64JSON.
+// Callers that only need the image URL (e.g. chat completions) should leave
+// this unset to avoid paying for an unused download.
+func WithGeneratedImageDownload(download bool) GenerateOption {
+	return func(c *GenerateConfig) {
+		c.DownloadGeneratedImages = download
 	}
 }
 
