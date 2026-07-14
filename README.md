@@ -165,6 +165,10 @@ Your Gemini Web To API is running at `http://localhost:4981` 🎉
 - ⚡ **High Performance**: Built with Go and Fiber for speed
 - 🐳 **Production Ready**: Docker Compose support, Scalar UI, health checks
 - 📝 **Well Documented**: Interactive API docs at `/docs`
+- 🖼️ **Image Generation**: OpenAI-compatible text-to-image with authenticated `b64_json` output
+- 🧩 **Image Inputs**: Remote URLs, `data:` URLs and multiple reference images in chat requests
+
+See [Image generation and image inputs](docs/image-generation.md) for tested examples, limitations and security guidance.
 
 ---
 

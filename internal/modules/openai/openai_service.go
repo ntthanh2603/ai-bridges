@@ -3,11 +3,8 @@ package openai
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -151,9 +148,13 @@ func (s *OpenAIService) CreateImageGeneration(ctx context.Context, req dto.Image
 	}
 
 	imagePrompt := buildImageGenerationPrompt(prompt, req.Size)
+	wantB64 := strings.EqualFold(req.ResponseFormat, "b64_json")
 	opts := []providers.GenerateOption{}
 	if req.Model != "" {
 		opts = append(opts, providers.WithModel(req.Model))
+	}
+	if wantB64 {
+		opts = append(opts, providers.WithGeneratedImageDownload(true))
 	}
 
 	data := make([]dto.ImageGenerationData, 0, n)
@@ -162,21 +163,27 @@ func (s *OpenAIService) CreateImageGeneration(ctx context.Context, req dto.Image
 		if err != nil {
 			return nil, err
 		}
-		if len(response.Images) == 0 {
+
+		generatedImages := make([]providers.Image, 0, len(response.Images))
+		for _, image := range response.Images {
+			if image.Generated {
+				generatedImages = append(generatedImages, image)
+			}
+		}
+		if len(generatedImages) == 0 {
 			return nil, fmt.Errorf("provider returned no generated images")
 		}
 
-		for _, image := range response.Images {
+		for _, image := range generatedImages {
 			if len(data) >= n {
 				break
 			}
 			item := dto.ImageGenerationData{RevisedPrompt: prompt}
-			if strings.EqualFold(req.ResponseFormat, "b64_json") {
-				b64, err := fetchImageAsBase64(ctx, image.URL)
-				if err != nil {
-					return nil, err
+			if wantB64 {
+				if image.B64JSON == "" {
+					return nil, fmt.Errorf("provider returned image metadata without image bytes")
 				}
-				item.B64JSON = b64
+				item.B64JSON = image.B64JSON
 			} else {
 				item.URL = image.URL
 			}
@@ -199,30 +206,6 @@ func buildImageGenerationPrompt(prompt, size string) string {
 		b.WriteString(strings.TrimSpace(size))
 	}
 	return b.String()
-}
-
-func fetchImageAsBase64(ctx context.Context, imageURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("build image fetch request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-	client := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("fetch generated image: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("fetch generated image failed with status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
-	if err != nil {
-		return "", fmt.Errorf("read generated image: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(body), nil
 }
 
 // CreateChatCompletionStream handles OpenAI streaming logic within the service layer.

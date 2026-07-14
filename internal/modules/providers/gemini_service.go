@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -41,9 +43,9 @@ type Client struct {
 	healthy      bool
 	log          *zap.Logger
 
-	autoRefresh     bool
-	refreshInterval time.Duration
-	stopRefresh     chan struct{}
+	autoRefresh      bool
+	refreshInterval  time.Duration
+	stopRefresh      chan struct{}
 	maxRetries       int
 	cachedModels     []ModelInfo
 	defaultTemporary bool
@@ -679,6 +681,19 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		if attempt > 1 {
 			c.log.Info("GenerateContent succeeded after retry", zap.Int("attempt", attempt))
 		}
+		if config.DownloadGeneratedImages {
+			for i := range result.Images {
+				if !result.Images[i].Generated {
+					continue
+				}
+				encoded, downloadErr := c.downloadGeneratedImage(ctx, result.Images[i].URL, cookieHdr)
+				if downloadErr != nil {
+					c.log.Warn("Failed to download generated image", zap.Error(downloadErr))
+					continue
+				}
+				result.Images[i].B64JSON = encoded
+			}
+		}
 		return result, nil
 	}
 
@@ -687,6 +702,61 @@ func (c *Client) GenerateContent(ctx context.Context, prompt string, options ...
 		zap.Error(lastErr),
 	)
 	return nil, fmt.Errorf("after %d attempts: %w", maxAttempts, lastErr)
+}
+
+const maxGeneratedImageBytes = 50 << 20
+
+func generatedImageHTTPClient(cookieHeader string) *http.Client {
+	return &http.Client{
+		Timeout: 2 * time.Minute,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many generated-image redirects")
+			}
+			if req.URL.Scheme != "https" || !isTrustedGoogleMediaHost(req.URL.Hostname()) {
+				return fmt.Errorf("refusing generated-image redirect to untrusted host")
+			}
+			if cookieHeader != "" {
+				req.Header.Set("Cookie", cookieHeader)
+			}
+			req.Header.Set("Referer", "https://gemini.google.com/")
+			return nil
+		},
+	}
+}
+
+func (c *Client) downloadGeneratedImage(ctx context.Context, rawURL, cookieHeader string) (string, error) {
+	imageURL := appendGoogleImageSize(rawURL, 2048)
+	parsedImageURL, err := url.Parse(imageURL)
+	if err != nil || parsedImageURL.Scheme != "https" || !isTrustedGoogleMediaHost(parsedImageURL.Hostname()) {
+		return "", fmt.Errorf("refusing generated-image download from untrusted host")
+	}
+	client := generatedImageHTTPClient(cookieHeader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", "https://gemini.google.com/")
+	if cookieHeader != "" {
+		req.Header.Set("Cookie", cookieHeader)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/") {
+		return "", fmt.Errorf("generated image download returned %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxGeneratedImageBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(body) > maxGeneratedImageBytes {
+		return "", fmt.Errorf("generated image exceeds %d byte limit", maxGeneratedImageBytes)
+	}
+	return base64.StdEncoding.EncodeToString(body), nil
 }
 
 func resolveAvailableModel(requested string, models []ModelInfo) (string, bool) {
@@ -859,10 +929,18 @@ func (c *Client) parseResponse(text string) (*Response, error) {
 					continue
 				}
 				collectImages(payload, imagesByURL)
-
 				if len(payload) > 4 {
 					candidates, ok := payload[4].([]interface{})
 					if ok && candidates != nil && len(candidates) > 0 {
+						for _, rawCandidate := range candidates {
+							candidate, ok := rawCandidate.([]interface{})
+							if !ok {
+								continue
+							}
+							for _, image := range extractGeneratedImages(candidate) {
+								imagesByURL[image.URL] = image
+							}
+						}
 						firstCandidate, ok := candidates[0].([]interface{})
 						if ok && len(firstCandidate) >= 2 {
 							contentParts, ok := firstCandidate[1].([]interface{})
@@ -988,6 +1066,94 @@ func collectImages(value any, out map[string]Image) {
 			}
 		}
 	}
+}
+
+// extractGeneratedImages reads the dedicated Gemini Web generated-media slot.
+// Current responses store generated images at candidate[12][7][0], where each
+// item contains metadata at item[0][3]: filename, URL, MIME and dimensions.
+// Generic URL scanning misses some of these URLs because they often have no
+// file extension and may be embedded beside non-image googleusercontent URLs.
+func extractGeneratedImages(candidate []interface{}) []Image {
+	if len(candidate) <= 12 {
+		return nil
+	}
+	candidateMedia, ok := candidate[12].([]interface{})
+	if !ok || len(candidateMedia) <= 7 {
+		return nil
+	}
+	mediaGroups, ok := candidateMedia[7].([]interface{})
+	if !ok || len(mediaGroups) == 0 {
+		return nil
+	}
+	generated, ok := mediaGroups[0].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	images := make([]Image, 0, len(generated))
+	for _, rawImage := range generated {
+		imageNode, ok := rawImage.([]interface{})
+		if !ok || len(imageNode) == 0 {
+			continue
+		}
+		wrapper, ok := imageNode[0].([]interface{})
+		if !ok || len(wrapper) <= 3 {
+			continue
+		}
+		metadata, ok := wrapper[3].([]interface{})
+		if !ok || len(metadata) <= 3 {
+			continue
+		}
+		imageURL, ok := metadata[3].(string)
+		if !ok || normalizeImageURL(imageURL) == "" {
+			continue
+		}
+		image := Image{URL: normalizeImageURL(imageURL), MimeType: "image/png", Generated: true}
+		if filename, ok := metadata[2].(string); ok {
+			image.Title = filename
+		}
+		for _, field := range metadata {
+			switch typed := field.(type) {
+			case string:
+				if strings.HasPrefix(typed, "image/") {
+					image.MimeType = typed
+				}
+			case []interface{}:
+				if len(typed) >= 2 {
+					if width, ok := typed[0].(float64); ok {
+						image.Width = int(width)
+					}
+					if height, ok := typed[1].(float64); ok {
+						image.Height = int(height)
+					}
+				}
+			}
+		}
+		images = append(images, image)
+	}
+	return images
+}
+
+func appendGoogleImageSize(rawURL string, size int) string {
+	if size <= 0 {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	lastSegment := path.Base(parsed.Path)
+	if strings.Contains(lastSegment, "=s") || strings.Contains(lastSegment, "=w") {
+		return rawURL
+	}
+	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + fmt.Sprintf("=s%d", size)
+	return parsed.String()
+}
+
+func isTrustedGoogleMediaHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	return host == "google.com" || strings.HasSuffix(host, ".google.com") ||
+		host == "googleusercontent.com" || strings.HasSuffix(host, ".googleusercontent.com")
 }
 
 func normalizeImageURL(rawURL string) string {
