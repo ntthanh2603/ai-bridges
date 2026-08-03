@@ -39,7 +39,7 @@ func (s *ClaudeService) GenerateMessage(ctx context.Context, req dto.MessageRequ
 	}
 
 	// Logic: Build Prompt
-	prompt := common.BuildPromptFromMessages(req.Messages, req.System)
+	prompt := common.BuildPromptFromMessages(req.Messages, req.System.Text)
 	if prompt == "" {
 		return nil, fmt.Errorf("no valid content in messages")
 	}
