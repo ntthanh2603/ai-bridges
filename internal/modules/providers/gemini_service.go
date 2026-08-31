@@ -137,13 +137,13 @@ func (c *Client) Init(ctx context.Context) error {
 	c.httpClient.SetCommonCookies(c.cookies.ToHTTPCookies()...)
 
 	// Get SNlM0e token
-	err := c.refreshSessionToken()
+	err := c.refreshSessionToken(ctx)
 	if err != nil {
 		c.log.Debug("Initial session token fetch failed, attempting cookie rotation", zap.Error(err))
 		// Try to rotate cookies and retry
 		if rotErr := c.RotateCookies(); rotErr == nil {
 			c.log.Debug("Cookie rotation succeeded, retrying session token fetch")
-			err = c.refreshSessionToken()
+			err = c.refreshSessionToken(ctx)
 		} else {
 			c.log.Debug("Cookie rotation failed", zap.Error(rotErr))
 		}
@@ -166,13 +166,13 @@ func (c *Client) Init(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) refreshSessionToken() error {
+func (c *Client) refreshSessionToken(ctx context.Context) error {
 	// 1. Initial hit to google.com to get extra cookies (NID, etc)
 	tmpClient := req.NewClient().
 		SetTimeout(30 * time.Second).
 		SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-	resp1, err := tmpClient.R().Get("https://www.google.com/")
+	resp1, err := tmpClient.R().SetContext(ctx).Get("https://www.google.com/")
 	extraCookies := ""
 	if err == nil {
 		parts := []string{}
@@ -237,7 +237,7 @@ func (c *Client) refreshSessionToken() error {
 		return strings.Join(res, "; ")
 	}
 
-	req1, _ := http.NewRequest("GET", "https://gemini.google.com/?hl=en", nil)
+	req1, _ := http.NewRequestWithContext(ctx, "GET", "https://gemini.google.com/?hl=en", nil)
 	for k, v := range commonHeaders {
 		req1.Header.Set(k, v)
 	}
@@ -252,7 +252,7 @@ func (c *Client) refreshSessionToken() error {
 	}
 
 	// 2. The main INIT hit
-	req2, _ := http.NewRequest("GET", EndpointInit+"?hl=en", nil)
+	req2, _ := http.NewRequestWithContext(ctx, "GET", EndpointInit+"?hl=en", nil)
 	for k, v := range commonHeaders {
 		req2.Header.Set(k, v)
 	}
@@ -396,7 +396,7 @@ func (c *Client) startAutoRefresh() {
 				// RotateCookies failed but NOT due to expired cookies (Google may not return new cookie every time)
 				// Fallback: try to refresh the session token (SNlM0e/at) to keep client alive
 				c.log.Warn("Cookie rotation failed, falling back to session token refresh", zap.Error(rotateErr))
-				if sessionErr := c.refreshSessionToken(); sessionErr != nil {
+				if sessionErr := c.refreshSessionToken(context.Background()); sessionErr != nil {
 					// Both methods failed — mark client as unhealthy so callers know
 					c.log.Error("Session token refresh also failed, marking client unhealthy",
 						zap.NamedError("rotation_error", rotateErr),
@@ -414,7 +414,7 @@ func (c *Client) startAutoRefresh() {
 				}
 			} else {
 				// Rotation succeeded — also refresh session token to keep SNlM0e/at up to date
-				if sessionErr := c.refreshSessionToken(); sessionErr != nil {
+				if sessionErr := c.refreshSessionToken(context.Background()); sessionErr != nil {
 					c.log.Warn("Cookie rotated but session token refresh failed", zap.Error(sessionErr))
 				} else {
 					c.log.Info("Cookie and session token refreshed successfully")
