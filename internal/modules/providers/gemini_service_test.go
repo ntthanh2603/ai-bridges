@@ -2,11 +2,49 @@ package providers
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"go.uber.org/zap"
 )
+
+func TestRefreshSessionHealthKeepsHealthyWhenRotationIsRejected(t *testing.T) {
+	rotationErr := errors.New("rotation failed with status 401")
+	refreshCalled := false
+
+	gotRotationErr, sessionErr, healthy := refreshSessionHealth(
+		func() error { return rotationErr },
+		func() error {
+			refreshCalled = true
+			return nil
+		},
+	)
+
+	if !refreshCalled {
+		t.Fatal("expected Gemini session verification after rotation failure")
+	}
+	if !errors.Is(gotRotationErr, rotationErr) {
+		t.Fatalf("expected rotation error %v, got %v", rotationErr, gotRotationErr)
+	}
+	if sessionErr != nil {
+		t.Fatalf("expected session verification to succeed, got %v", sessionErr)
+	}
+	if !healthy {
+		t.Fatal("expected provider to remain healthy when Gemini still accepts the session")
+	}
+}
+
+func TestRefreshSessionHealthMarksUnhealthyWhenBothChecksFail(t *testing.T) {
+	_, _, healthy := refreshSessionHealth(
+		func() error { return errors.New("rotation failed") },
+		func() error { return errors.New("session verification failed") },
+	)
+
+	if healthy {
+		t.Fatal("expected provider to be unhealthy when both refresh checks fail")
+	}
+}
 
 func TestParseResponseExtractsGeneratedImages(t *testing.T) {
 	imageURL := "https://lh3.googleusercontent.com/generated-image=w1024-h1024"
@@ -96,4 +134,3 @@ func TestParseResponseHandlesBardErrorInfo(t *testing.T) {
 		t.Fatalf("Expected error to contain %q, got: %v", expectedSubstr, err)
 	}
 }
-
