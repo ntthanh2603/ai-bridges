@@ -376,54 +376,46 @@ func (c *Client) startAutoRefresh() {
 		select {
 		case <-ticker.C:
 			c.log.Debug("Starting scheduled cookie refresh")
-			rotateErr := c.RotateCookies()
+			rotateErr, sessionErr, healthy := refreshSessionHealth(
+				c.RotateCookies,
+				func() error { return c.refreshSessionToken(context.Background()) },
+			)
+
 			if rotateErr != nil {
-				// Check if it's a 401/403 (cookies fully expired) — no point retrying session token
-				isCookieExpired := strings.Contains(rotateErr.Error(), "status 401") ||
-					strings.Contains(rotateErr.Error(), "status 403")
+				c.log.Warn("Cookie rotation failed; verified the Gemini session separately", zap.Error(rotateErr))
+			}
+			if sessionErr != nil {
+				c.log.Warn("Gemini session token refresh failed", zap.Error(sessionErr))
+			}
 
-				if isCookieExpired {
-					c.log.Error("Cookies have expired — please update GEMINI_1PSID and GEMINI_1PSIDTS in .env",
-						zap.Error(rotateErr),
-						zap.String("action", "Visit https://gemini.google.com → F12 → Application → Cookies"),
-					)
-					c.mu.Lock()
-					c.healthy = false
-					c.mu.Unlock()
-					continue
-				}
+			c.mu.Lock()
+			c.healthy = healthy
+			c.mu.Unlock()
 
-				// RotateCookies failed but NOT due to expired cookies (Google may not return new cookie every time)
-				// Fallback: try to refresh the session token (SNlM0e/at) to keep client alive
-				c.log.Warn("Cookie rotation failed, falling back to session token refresh", zap.Error(rotateErr))
-				if sessionErr := c.refreshSessionToken(context.Background()); sessionErr != nil {
-					// Both methods failed — mark client as unhealthy so callers know
-					c.log.Error("Session token refresh also failed, marking client unhealthy",
-						zap.NamedError("rotation_error", rotateErr),
-						zap.NamedError("session_error", sessionErr),
-					)
-					c.mu.Lock()
-					c.healthy = false
-					c.mu.Unlock()
-				} else {
-					c.log.Info("Session token refreshed successfully after rotation failure")
-					// Ensure client is marked healthy since session token is valid
-					c.mu.Lock()
-					c.healthy = true
-					c.mu.Unlock()
-				}
+			if healthy {
+				c.log.Info("Gemini session refresh completed",
+					zap.Bool("cookie_rotated", rotateErr == nil),
+					zap.Bool("session_token_refreshed", sessionErr == nil),
+				)
 			} else {
-				// Rotation succeeded — also refresh session token to keep SNlM0e/at up to date
-				if sessionErr := c.refreshSessionToken(context.Background()); sessionErr != nil {
-					c.log.Warn("Cookie rotated but session token refresh failed", zap.Error(sessionErr))
-				} else {
-					c.log.Info("Cookie and session token refreshed successfully")
-				}
+				c.log.Error("Cookie rotation and session verification both failed; marking client unhealthy",
+					zap.NamedError("rotation_error", rotateErr),
+					zap.NamedError("session_error", sessionErr),
+					zap.String("action", "Visit https://gemini.google.com -> F12 -> Application -> Cookies"),
+				)
 			}
 		case <-c.stopRefresh:
 			return
 		}
 	}
+}
+
+func refreshSessionHealth(rotate, refreshToken func() error) (rotateErr, sessionErr error, healthy bool) {
+	rotateErr = rotate()
+	// RotateCookies can reject a session that the Gemini application still accepts.
+	// Always verify against Gemini before deciding that the provider is unhealthy.
+	sessionErr = refreshToken()
+	return rotateErr, sessionErr, rotateErr == nil || sessionErr == nil
 }
 
 func (c *Client) RotateCookies() error {
